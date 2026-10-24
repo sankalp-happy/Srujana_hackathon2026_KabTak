@@ -9,6 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 RESULT = os.environ.get("KABTAK_RESULT", "fixtures/engine_result.json")
 
 UI = Path(__file__).resolve().parent
+STATUS = {"type": "status", "party": None, "amount_inr": None, "days": None, "pct": None, "date": None,
+          "obligation": None, "transcript": None, "needs_clarification": False, "question": None}
 
 
 def fixture():
@@ -33,7 +35,13 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        if self.path == "/api/result":
+        if self.path == "/api/result":  # first screen: live status check, fixture if KABTAK_RESULT is set or no engine
+            if "KABTAK_RESULT" not in os.environ:
+                try:
+                    from engine.answer import answer
+                    return self.send_json(200, {"source": "engine", "result": answer(STATUS)})
+                except ImportError:
+                    pass
             return self.send_json(200, {"source": f"fixture: {RESULT}", "result": fixture()})
         return super().do_GET()
 

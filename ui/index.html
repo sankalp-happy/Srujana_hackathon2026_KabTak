@@ -55,10 +55,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .asked { flex: 1; min-width: 240px; font-size: 15px; color: #c3d4e6; }
 .asked q { color: var(--shell-ink); quotes: "“" "”"; }
 .switch { position: relative; display: flex; border: 1px solid #4f7299; border-radius: var(--r); overflow: hidden; }
-.switch input { position: absolute; opacity: 0; pointer-events: none; }
-.switch label { padding: 7px 16px; cursor: pointer; font-weight: 600; font-size: 15px; color: #c3d4e6; }
-.switch input:checked + label { background: var(--shell-ink); color: var(--shell); }
-.switch input:focus-visible + label { outline: 2px solid #fff; outline-offset: -3px; }
+.switch button { padding: 7px 16px; cursor: pointer; font-weight: 600; font-size: 15px; color: #c3d4e6; background: none; border: 0; }
+.switch button + button { border-left: 1px solid #4f7299; }
+.switch button:hover { color: #fff; }
+.switch button[aria-pressed="true"] { background: var(--shell-ink); color: var(--shell); }
+.switch button:focus-visible { outline: 2px solid #fff; outline-offset: -3px; }
 .notice {
   margin: 0; padding: 9px 28px; background: #fff7e6; border-bottom: 1px solid #ecd6a8;
   font-size: 14px; color: #5c4210; display: flex; gap: 8px 20px; flex-wrap: wrap;
@@ -71,7 +72,10 @@ main { display: grid; gap: 20px; min-width: 0; }
 .sheet > h2 { font: 700 20px/1.2 var(--sans); margin-bottom: 4px; }
 .sub { color: var(--ink-2); font-size: 14.5px; margin: 0 0 16px; }
 [hidden] { display: none !important; }
-body[data-view="owner"] .ca-only { display: none !important; }
+body:not([data-view="ca"]) .ca-only, body:not([data-view="story"]) .story-only, body[data-view="story"] .no-story { display: none !important; }
+body[data-view="story"] .layout { grid-template-columns: minmax(0, 1fr); max-width: 1200px; }
+.how { font-size: 14px; color: var(--ink-2); margin: 10px 0 0; max-width: 75ch; }
+.how::before { content: "How to read this: "; font-weight: 600; color: var(--ink); }
 
 /* stamps: always text, colour is a second signal */
 .stamp {
@@ -175,6 +179,34 @@ details.why p { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); max-width
 .order dd { margin: 2px 0 0; font: 600 22px/1.2 var(--sans); }
 .order .answer { margin: 0; font-size: 17px; }
 
+/* story */
+.steps { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.steps button { width: 100%; text-align: left; background: none; border: 0; border-top: 4px solid var(--rule); padding: 10px 2px 0; cursor: pointer; color: var(--ink-2); font-weight: 600; font-size: 15px; }
+.steps button b { display: block; font: 700 13px/1 var(--cond); letter-spacing: .06em; margin-bottom: 4px; }
+.steps button[aria-current="step"] { border-color: var(--shell); color: var(--ink); }
+.steps button.done { border-color: var(--band-deep); }
+.say { font: 600 clamp(20px, 2.3vw, 28px)/1.35 var(--sans); margin: 0 0 18px; max-width: 60ch; text-wrap: pretty; }
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--rule); }
+.nav .run { min-width: 120px; }
+.ghost { background: none; border: 1px solid var(--rule-strong); border-radius: 4px; padding: 10px 14px; font-weight: 600; cursor: pointer; min-width: 120px; }
+.ghost:hover { border-color: var(--ink); }
+.ghost:disabled, .nav .run:disabled { opacity: .4; cursor: default; }
+.counter { font: 600 18px/1.3 var(--sans); margin: 12px 0 0; }
+.counter b { color: var(--ng); }
+#stage h3 { font: 600 17px/1.3 var(--sans); margin: 26px 0 8px; }
+#stage h3:first-child { margin-top: 0; }
+.delta { font: 600 18px/1.4 var(--sans); margin: 0 0 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.oblist { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.oblist li { border: 1px solid var(--rule-strong); border-radius: 4px; padding: 6px 10px; font-size: 14.5px; }
+.oblist b { font-weight: 600; }
+.curvectl { display: grid; grid-template-columns: auto auto minmax(160px, 1fr); gap: 10px 16px; align-items: center; margin-top: 12px; }
+.curvectl input[type=range] { padding: 0; border: 0; accent-color: var(--shell); }
+.curvectl select { width: auto; }
+.curveread { font: 600 18px/1.35 var(--sans); margin: 10px 0 0; }
+.arr { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 22px; }
+.arr h3 { font: 600 16px/1.3 var(--sans); }
+.arr p { margin: 2px 0 6px; font-size: 13.5px; color: var(--ink-2); }
+
 /* scenario */
 aside { position: sticky; top: 16px; }
 aside form { display: grid; gap: 14px; }
@@ -213,6 +245,8 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
   .today { grid-template-columns: 1fr 1fr; }
   .today > div:nth-child(3) { padding-left: 0; border-left: 0; }
   .gauges, .order dl { grid-template-columns: 1fr 1fr; }
+  .steps { grid-template-columns: 1fr 1fr; }
+  .curvectl { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   .sheet { padding: 18px 16px; }
@@ -230,16 +264,25 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
 <header class="bar">
   <div class="brand"><h1>Kab Tak?</h1><span lang="hi">कब तक?</span></div>
   <p class="asked" id="asked"></p>
-  <div class="switch" role="radiogroup" aria-label="View">
-    <input type="radio" name="view" id="v-owner" value="owner" checked><label for="v-owner">Owner</label>
-    <input type="radio" name="view" id="v-ca" value="ca"><label for="v-ca">CA</label>
+  <div class="switch" role="group" aria-label="View">
+    <button type="button" data-view="owner" aria-pressed="true">Owner</button>
+    <button type="button" data-view="ca" aria-pressed="false">CA</button>
+    <button type="button" data-view="story" aria-pressed="false">Story</button>
   </div>
 </header>
 <p class="notice" role="note"><strong>Computes and compares options, not financial or legal advice. Synthetic data.</strong><span id="meta"></span></p>
 
 <div class="layout">
   <main id="main" aria-live="polite">
-    <section class="sheet verdict" id="verdict" aria-labelledby="verdict-h"></section>
+    <section class="sheet story-only" id="story" aria-labelledby="story-h">
+      <h2 class="sr" id="story-h">Story</h2>
+      <ol class="steps" id="steps"></ol>
+      <p class="say" id="say" aria-live="polite"></p>
+      <div id="stage"></div>
+      <div class="nav"><button type="button" class="ghost" id="back">Back</button><span id="stepno" class="muted"></span><button type="button" class="run" id="next">Next</button></div>
+    </section>
+
+    <section class="sheet verdict no-story" id="verdict" aria-labelledby="verdict-h"></section>
 
     <section class="sheet ca-only" id="today" aria-labelledby="today-h">
       <h2 id="today-h">Today</h2>
@@ -250,8 +293,10 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
     <section class="sheet ca-only" id="fan" aria-labelledby="fan-h">
       <h2 id="fan-h">Next 90 days</h2>
       <p class="sub" id="fan-sub"></p>
+      <p class="delta" id="fan-delta" hidden></p>
       <div class="chart" id="fan-chart"></div>
       <div class="key" id="fan-key"></div>
+      <p class="how">Each day, the blue band covers 8 of 10 simulated futures and the line is the middle one. Where the band dips under the red line, some futures can't make a payment.</p>
       <div class="weeks" id="weeks"></div>
     </section>
 
@@ -267,6 +312,12 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
       <div id="kabtak-body"></div>
     </section>
 
+    <section class="sheet ca-only" id="arrivals" aria-labelledby="arr-h" hidden>
+      <h2 id="arr-h">Due vs expected</h2>
+      <p class="sub">When invoices are due vs when we expect the money.</p>
+      <div id="arr-body"></div>
+    </section>
+
     <section class="sheet ca-only" id="assumptions" aria-labelledby="assume-h">
       <h2 id="assume-h">Assumptions</h2>
       <p class="sub">What the numbers rest on. Challenge any of them.</p>
@@ -274,7 +325,7 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
     </section>
   </main>
 
-  <aside class="sheet" aria-labelledby="scn-h">
+  <aside class="sheet no-story" aria-labelledby="scn-h">
     <h2 id="scn-h">Ask a question</h2>
     <p class="sub">Build a scenario and run it through the engine.</p>
     <form id="scn" novalidate>
