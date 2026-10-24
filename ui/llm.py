@@ -72,7 +72,7 @@ type, its required fields, and what days means:
 - status: none. "Can I pay wages on the 7th?", "how are we doing?"
 - new_order: party, amount_inr, days = payment terms offered. "Should I take Bajaj's 12 lakh order on 90-day terms?"
 - delay_payment: party, days = extra days late. "What if Buyer A pays a month late?"
-- expense_shock: amount_inr, date. "The spindle motor needs 2 lakh next week"
+- expense_shock: amount_inr, date. Any one-off money going out: a repair, a purchase, a cash withdrawal, the owner taking money out, a loan repayment. "The spindle motor needs 2 lakh next week", "Can I withdraw 12 L after 5 days?". The purpose doesn't matter; never ask for it.
 - sales_drop: pct, days = how long. supplier_terms: party, days = new terms. schedule_change: obligation, date.
 - payment_received: party, amount_inr, date.
 
