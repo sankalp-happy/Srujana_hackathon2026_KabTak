@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kab Tak?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&family=Mukta:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ground: #e6ecf2;
+  --sheet: #fff;
+  --ink: #0f2233;
+  --ink-2: #4a5d70;
+  --rule: #d3dce5;
+  --rule-strong: #9fb0c1;
+  --shell: #123a63;
+  --shell-ink: #e8f0f8;
+  --blue: #1f5fa8;
+  --band: #c4d8ef;
+  --band-deep: #8fb4de;
+  --ok: #1a7343;
+  --ok-bg: #e3f3ea;
+  --watch: #9a5a00;
+  --watch-bg: #fdf1dc;
+  --ng: #b42318;
+  --ng-bg: #fde8e6;
+  --plan: #eaf2fb;
+  --sans: "Barlow", system-ui, sans-serif;
+  --cond: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+  --deva: "Mukta", "Noto Sans Devanagari", sans-serif;
+  --r: 6px;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--ground); color: var(--ink);
+  font: 400 16px/1.5 var(--sans); font-variant-numeric: tabular-nums;
+}
+::selection { background: var(--band-deep); color: var(--ink); }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; line-height: 1.15; text-wrap: balance; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* shell */
+.bar {
+  background: var(--shell); color: var(--shell-ink);
+  display: flex; align-items: center; gap: 24px; padding: 14px 28px; flex-wrap: wrap;
+}
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { font: 700 26px/1 var(--sans); letter-spacing: -0.01em; }
+.brand span { font: 600 18px/1 var(--deva); opacity: .8; }
+.asked { flex: 1; min-width: 240px; font-size: 15px; color: #c3d4e6; }
+.asked q { color: var(--shell-ink); quotes: "“" "”"; }
+.switch { position: relative; display: flex; border: 1px solid #4f7299; border-radius: var(--r); overflow: hidden; }
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch label { padding: 7px 16px; cursor: pointer; font-weight: 600; font-size: 15px; color: #c3d4e6; }
+.switch input:checked + label { background: var(--shell-ink); color: var(--shell); }
+.switch input:focus-visible + label { outline: 2px solid #fff; outline-offset: -3px; }
+.notice {
+  margin: 0; padding: 9px 28px; background: #fff7e6; border-bottom: 1px solid #ecd6a8;
+  font-size: 14px; color: #5c4210; display: flex; gap: 8px 20px; flex-wrap: wrap;
+}
+.notice strong { font-weight: 600; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; padding: 24px 28px 48px; max-width: 1440px; margin: 0 auto; align-items: start; }
+main { display: grid; gap: 20px; min-width: 0; }
+.sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r); padding: 22px 24px; min-width: 0; }
+.sheet > h2 { font: 700 20px/1.2 var(--sans); margin-bottom: 4px; }
+.sub { color: var(--ink-2); font-size: 14.5px; margin: 0 0 16px; }
+[hidden] { display: none !important; }
+body[data-view="owner"] .ca-only { display: none !important; }
+
+/* stamps: always text, colour is a second signal */
+.stamp {
+  display: inline-block; font: 700 13px/1 var(--cond); letter-spacing: .08em; text-transform: uppercase;
+  padding: 4px 7px 3px; border: 1.5px solid currentColor; border-radius: 3px; white-space: nowrap;
+}
+.s-ok { color: var(--ok); background: var(--ok-bg); }
+.s-watch { color: var(--watch); background: var(--watch-bg); }
+.s-ng { color: var(--ng); background: var(--ng-bg); }
+
+/* verdict */
+.verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: center; padding: 28px 32px; }
+.verdict .big {
+  font: 700 clamp(30px, 4.4vw, 52px)/1 var(--cond); letter-spacing: .06em; text-transform: uppercase;
+  padding: 16px 22px 12px; border: 4px double currentColor; border-radius: 6px; transform: rotate(-3deg);
+  text-align: center;
+}
+.verdict .big small { display: block; font: 600 15px/1.2 var(--sans); letter-spacing: 0; text-transform: none; margin-top: 8px; }
+.verdict h2 { font: 700 clamp(22px, 2.4vw, 30px)/1.2 var(--sans); }
+.verdict .hi { font: 400 19px/1.55 var(--deva); margin: 8px 0 0; color: var(--ink-2); }
+body[data-view="owner"] .verdict { padding: 48px 44px; gap: 44px; }
+body[data-view="owner"] .verdict .big { font-size: clamp(36px, 4.6vw, 60px); max-width: 340px; }
+body[data-view="owner"] .verdict h2 { font-size: clamp(26px, 3.2vw, 40px); }
+body[data-view="owner"] .verdict .hi { font-size: 22px; }
+body[data-view="owner"] .action .lead { font-size: 22px; }
+.action { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--rule); display: grid; gap: 6px; }
+.action p { margin: 0; }
+.action b { font-weight: 600; }
+.action .lead { font-size: 19px; }
+.muted { color: var(--ink-2); }
+
+/* today */
+.today { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--rule); }
+.today > div { padding: 14px 16px 2px 0; }
+.today > div + div { padding-left: 16px; border-left: 1px solid var(--rule); }
+.today dt { font-size: 14px; color: var(--ink-2); }
+.today dd { margin: 2px 0 0; font: 600 28px/1.2 var(--sans); letter-spacing: -0.01em; }
+.today dd.bad { color: var(--ng); }
+.gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 18px; }
+.gauge p { margin: 0 0 6px; font-size: 14px; color: var(--ink-2); }
+.track { position: relative; height: 14px; background: #eef2f6; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; display: flex; }
+.track i { display: block; height: 100%; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; background: var(--c); vertical-align: -1px; }
+
+/* fan */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--sans); fill: var(--ink-2); font-size: 12px; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; line-height: 1.45;
+  padding: 8px 10px; border-radius: 4px; box-shadow: 0 6px 18px rgba(15,34,51,.25); min-width: 170px; transform: translate(-50%, -100%);
+}
+.tip b { font-weight: 600; }
+.tip .row { display: flex; justify-content: space-between; gap: 14px; }
+.key { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); margin: 10px 0 0; }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.key svg { width: 22px; height: 12px; }
+
+/* weekly inspection */
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th { text-align: left; font-weight: 600; font-size: 13px; color: var(--ink-2); padding: 8px 10px; border-bottom: 1.5px solid var(--rule-strong); white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+td.num, th.num { text-align: right; }
+.scroll { overflow-x: auto; }
+.weeks { margin-top: 22px; }
+.weeks h3, .fixes-head h3 { font: 600 16px/1.3 var(--sans); margin-bottom: 6px; }
+.dev { position: relative; width: 100%; min-width: 140px; height: 12px; background: #eef2f6; border-radius: 2px; }
+.dev i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; }
+.dev u { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 2px dashed var(--ink); }
+tr.worst td { background: var(--ng-bg); }
+tr.worst td:first-child { font-weight: 600; }
+
+/* fixes */
+.plan-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 12px 16px; background: var(--plan); border: 1px solid #b8cfe9; border-radius: var(--r); margin-bottom: 14px; }
+.plan-sum p { margin: 0; }
+tr.inplan td { background: var(--plan); }
+.tag { font: 600 12px/1 var(--sans); padding: 4px 7px; border-radius: 3px; white-space: nowrap; }
+.tag.now { background: var(--ok-bg); color: var(--ok); }
+.tag.later { background: #edf0f3; color: var(--ink-2); }
+.tag.plan { background: var(--blue); color: #fff; }
+details.why summary { cursor: pointer; color: var(--blue); font-size: 13.5px; font-weight: 600; margin-top: 3px; width: fit-content; }
+details.why p { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); max-width: 60ch; }
+.after { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.after .dev { width: 90px; min-width: 90px; }
+.empty { padding: 26px; text-align: center; border: 1.5px dashed var(--rule-strong); border-radius: var(--r); }
+.empty p { margin: 6px 0 0; }
+
+/* kab tak */
+.buyers { display: grid; gap: 14px; }
+.buyer { display: grid; grid-template-columns: 110px minmax(0, 1fr) 150px; gap: 14px; align-items: center; }
+.buyer b { font-weight: 600; }
+.buyer .track { height: 22px; }
+.buyer .val { font-weight: 600; text-align: right; }
+.axis { display: grid; grid-template-columns: 110px minmax(0, 1fr) 150px; gap: 14px; font-size: 12px; color: var(--ink-2); }
+.axis div { display: flex; justify-content: space-between; }
+.order { margin-top: 22px; border: 1.5px solid var(--rule-strong); border-radius: var(--r); padding: 18px 20px; display: grid; gap: 14px; }
+.order h3 { font: 600 17px/1.3 var(--sans); }
+.order dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.order dt { font-size: 13.5px; color: var(--ink-2); }
+.order dd { margin: 2px 0 0; font: 600 22px/1.2 var(--sans); }
+.order .answer { margin: 0; font-size: 17px; }
+
+/* scenario */
+aside { position: sticky; top: 16px; }
+aside form { display: grid; gap: 14px; }
+.field { display: grid; gap: 4px; }
+.field label { font-size: 14px; font-weight: 600; }
+.field .hint { font-size: 12.5px; color: var(--ink-2); }
+input, select, textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--rule-strong); border-radius: 4px; background: #fff;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--blue); outline: 2px solid var(--band); outline-offset: 0; }
+textarea { resize: vertical; min-height: 60px; font-family: var(--deva), var(--sans); }
+.run { background: var(--shell); color: #fff; border: 0; border-radius: 4px; padding: 11px 14px; font-weight: 600; cursor: pointer; }
+.run:hover { background: var(--blue); }
+.run:disabled { opacity: .6; cursor: progress; }
+.status { font-size: 13.5px; margin: 0; padding: 8px 10px; border-radius: 4px; background: #eef2f6; color: var(--ink-2); }
+.status.err { background: var(--ng-bg); color: var(--ng); }
+details.json summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--blue); }
+details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(--rule); border-radius: 4px; padding: 10px; font: 12px/1.45 ui-monospace, Menlo, monospace; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+
+.assume td:first-child { font-weight: 500; }
+.foot { font-size: 13px; color: var(--ink-2); text-align: center; padding: 0 28px 28px; }
+
+/* one authored moment: the band is measured in, the stamp strikes */
+@media (prefers-reduced-motion: no-preference) {
+  .chart .band { animation: sweep .9s cubic-bezier(.16,1,.3,1); }
+  .verdict .big.strike { animation: strike .45s cubic-bezier(.16,1,.3,1) both; }
+}
+@keyframes sweep { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes strike { from { transform: rotate(-3deg) scale(1.25); opacity: 0; } }
+
+@media (max-width: 980px) {
+  .layout { grid-template-columns: 1fr; padding: 16px; }
+  aside { position: static; order: 2; }
+  .bar { padding: 12px 16px; gap: 12px; }
+  .notice { padding: 9px 16px; }
+  .today { grid-template-columns: 1fr 1fr; }
+  .today > div:nth-child(3) { padding-left: 0; border-left: 0; }
+  .gauges, .order dl { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .sheet { padding: 18px 16px; }
+  .verdict, body[data-view] .verdict { grid-template-columns: 1fr; padding: 22px 18px; gap: 18px; }
+  .verdict .big { justify-self: start; }
+  .gauges { grid-template-columns: 1fr; }
+  .buyer, .axis { grid-template-columns: 80px minmax(0, 1fr); }
+  .buyer .val { grid-column: 1 / -1; text-align: left; font-size: 14px; }
+  .axis > :last-child { display: none; }
+  .today dd { font-size: 23px; }
+}
+</style>
+</head>
+<body data-view="owner">
+<header class="bar">
+  <div class="brand"><h1>Kab Tak?</h1><span lang="hi">कब तक?</span></div>
+  <p class="asked" id="asked"></p>
+  <div class="switch" role="radiogroup" aria-label="View">
+    <input type="radio" name="view" id="v-owner" value="owner" checked><label for="v-owner">Owner</label>
+    <input type="radio" name="view" id="v-ca" value="ca"><label for="v-ca">CA</label>
+  </div>
+</header>
+<p class="notice" role="note"><strong>Computes and compares options, not financial or legal advice. Synthetic data.</strong><span id="meta"></span></p>
+
+<div class="layout">
+  <main id="main" aria-live="polite">
+    <section class="sheet verdict" id="verdict" aria-labelledby="verdict-h"></section>
+
+    <section class="sheet ca-only" id="today" aria-labelledby="today-h">
+      <h2 id="today-h">Today</h2>
+      <p class="sub">Money you can reach now, and money owed to you.</p>
+      <div id="today-body"></div>
+    </section>
+
+    <section class="sheet ca-only" id="fan" aria-labelledby="fan-h">
+      <h2 id="fan-h">Next 90 days</h2>
+      <p class="sub" id="fan-sub"></p>
+      <div class="chart" id="fan-chart"></div>
+      <div class="key" id="fan-key"></div>
+      <div class="weeks" id="weeks"></div>
+    </section>
+
+    <section class="sheet ca-only" id="fixes" aria-labelledby="fixes-h">
+      <h2 id="fixes-h">Fixes</h2>
+      <p class="sub">Each fix, what it costs, and the worst-week risk after it.</p>
+      <div id="fixes-body"></div>
+    </section>
+
+    <section class="sheet ca-only" id="kabtak" aria-labelledby="kabtak-h">
+      <h2 id="kabtak-h">Kab tak?</h2>
+      <p class="sub">How many days late each buyer can pay before you fall short.</p>
+      <div id="kabtak-body"></div>
+    </section>
+
+    <section class="sheet ca-only" id="assumptions" aria-labelledby="assume-h">
+      <h2 id="assume-h">Assumptions</h2>
+      <p class="sub">What the numbers rest on. Challenge any of them.</p>
+      <div id="assume-body"></div>
+    </section>
+  </main>
+
+  <aside class="sheet" aria-labelledby="scn-h">
+    <h2 id="scn-h">Ask a question</h2>
+    <p class="sub">Build a scenario and run it through the engine.</p>
+    <form id="scn" novalidate>
+      <div class="field">
+        <label for="f-type">Question type</label>
+        <select id="f-type" name="type">
+          <option value="status">Status check</option>
+          <option value="new_order">New order</option>
+          <option value="delay_payment">Buyer pays late</option>
+          <option value="expense_shock">Sudden expense</option>
+          <option value="sales_drop">Sales drop</option>
+          <option value="supplier_terms">Supplier terms change</option>
+          <option value="schedule_change">Move a payment date</option>
+          <option value="payment_received">Payment received</option>
+        </select>
+      </div>
+      <div class="field" data-f="party"><label for="f-party">Party</label><input id="f-party" name="party" list="parties" autocomplete="off"><datalist id="parties"></datalist></div>
+      <div class="field" data-f="amount_inr"><label for="f-amount">Amount (₹)</label><input id="f-amount" name="amount_inr" type="number" inputmode="numeric" min="0" step="1"><span class="hint" id="amount-hint"></span></div>
+      <div class="field" data-f="days"><label for="f-days" id="days-label">Days</label><input id="f-days" name="days" type="number" inputmode="numeric" min="0" step="1"></div>
+      <div class="field" data-f="pct"><label for="f-pct">Drop (%)</label><input id="f-pct" name="pct" type="number" inputmode="numeric" min="0" max="100" step="1"></div>
+      <div class="field" data-f="date"><label for="f-date">Date</label><input id="f-date" name="date" type="date"></div>
+      <div class="field" data-f="obligation"><label for="f-obl">Payment to move</label>
+        <select id="f-obl" name="obligation"><option value="wages">Wages</option><option value="emi">EMI</option><option value="gst">GST</option><option value="rent">Rent</option></select></div>
+      <div class="field"><label for="f-tr">Owner's words <span class="muted">(optional)</span></label><textarea id="f-tr" name="transcript" lang="mr"></textarea></div>
+      <button class="run" type="submit">Run scenario</button>
+      <p class="status" id="status" role="status"></p>
+      <details class="json"><summary>Scenario JSON</summary><pre id="json"></pre></details>
+    </form>
+  </aside>
+</div>
+<p class="foot" id="foot"></p>
+<script src="app.js"></script>
+</body>
+</html>
