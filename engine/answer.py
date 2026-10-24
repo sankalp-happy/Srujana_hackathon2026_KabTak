@@ -60,6 +60,76 @@ def _worst(weeks, obligations):
     return {"week_start": w["week_start"], "p_shortfall": w["p_shortfall"], "obligation": ", ".join(due)}
 
 
+# Contract due dates for the expected-vs-due view: MSMED s.15 caps agreed terms at 45 days
+TERMS_DAYS = {"Buyer A": 45, "Buyer B": 45, "CPSE": 45, "Small customers": 30}
+N_SAMPLE = 30
+CURVE_DELAYS = list(range(0, 61, 5))
+
+
+def _sample_paths(sim):
+    """~30 paths picked evenly by rank of their lowest liquidity, so safe and short paths both show."""
+    liq, short = sim["liquidity"], sim["shortfall"].sum(axis=1) > 0
+    order = np.argsort(liq.min(axis=1))
+    pick = order[np.linspace(0, len(order) - 1, N_SAMPLE).round().astype(int)]
+    return [{"values": _pct(liq[i]), "short": bool(short[i])} for i in pick]
+
+
+def _arrivals(sim):
+    """Per payer: receipts due on contract dates vs mean simulated receipts, by week (net of TDS)."""
+    live, today, start = sm._state()["live"], ledger.TODAY, sim["dates"][0]
+    out = []
+    rank = lambda kv: ledger.BUYERS.index(kv[0]) if kv[0] in ledger.BUYERS else len(ledger.BUYERS)
+    for b, exp in sorted(sim["inflow_by_payer"].items(), key=rank):
+        rows = live[live.buyer == b]
+        due = np.zeros(13)
+        for r in rows.itertuples():
+            k = max(0, (r.invoice_date + timedelta(days=TERMS_DAYS[b]) - start).days) // 7   # overdue -> week 1
+            if k < 13:
+                due[k] += r.gross_inr - r.tds_inr
+        opened = rows[rows.invoice_date <= today].gross_inr.sum()
+        out.append({"buyer": b, "open_inr": int(opened),
+                    "due_by_week_inr": [int(round(x)) for x in due],
+                    "expected_by_week_inr": [int(round(exp[7 * w:7 * w + 7].sum())) for w in range(13)]})
+    return out
+
+
+def _bridge(sim, worst):
+    """Mean path from today to the last day of the worst week: start + receipts - obligations + change in DP = end."""
+    start_day = sim["dates"][0]
+    end_k = (date.fromisoformat(worst["week_start"]) - start_day).days + 6          # index of last day
+    end_date = start_day + timedelta(days=end_k)
+    pos = sm._state()["pos"]
+    dp0 = sim["dp"][:, 0].mean()
+    start = pos["bank_inr"] - pos["od_drawn_inr"] + dp0     # liquidity before day 1's flows
+    items = [{"label": f"Receipts: {b}", "amount_inr": int(round(v[:end_k + 1].sum()))}
+             for b, v in sim["inflow_by_payer"].items() if v[:end_k + 1].sum() >= 500]
+    paid = {}
+    for o in sim["obligations"]:
+        if o["date"] <= end_date:
+            paid[o["label"]] = paid.get(o["label"], 0) + o["amount_inr"]
+    items += [{"label": k, "amount_inr": -int(v)} for k, v in paid.items()]
+    items.append({"label": "Change in drawing power", "amount_inr": int(round(sim["dp"][:, end_k].mean() - dp0))})
+    end = float(sim["liquidity"][:, end_k].mean())
+    assert abs(start + sum(i["amount_inr"] for i in items) - end) <= 500 * len(items), "bridge does not reconcile"
+    return {"week_start": worst["week_start"], "start_inr": int(round(start)), "items": items,
+            "end_inr": int(round(end))}
+
+
+def _summary(sim, weeks, obligations, p10, p50, p90):
+    return {"p_shortfall": round(sm.p_shortfall(sim), 3), "worst_week": _worst(weeks, obligations),
+            "fan": {"p10": _pct(p10), "p50": _pct(p50), "p90": _pct(p90)}}
+
+
+_BASE = []
+
+
+def _baseline():
+    """Status-run summary, cached: what things look like with no scenario."""
+    if not _BASE:
+        answer({"type": "status"})
+    return _BASE[0]
+
+
 def answer(scenario):
     _check(scenario)
     t = scenario["type"]
@@ -88,14 +158,16 @@ def answer(scenario):
         out_order = {"party": order["party"], "amount_inr": order["amount_inr"], "terms_days": order["terms_days"],
                      **ot, "margin_inr": int(round(order["amount_inr"] * ledger.ORDER_MARGIN_PCT))}
 
-    return {
+    summary = _summary(sim, weeks, obligations, p10, p50, p90)
+    worst = _worst(weeks, obligations)
+    result = {
         "as_of": ledger.TODAY.isoformat(), "synthetic": True, "placeholder": False, "risk_target": RISK_TARGET,
         "scenario": {k: scenario.get(k) for k in KEYS},
         "today": {k: int(v) for k, v in sim["today"].items()},
         "fan": {"dates": [d.isoformat() for d in sim["dates"]], "p10": _pct(p10), "p50": _pct(p50), "p90": _pct(p90)},
         "obligations": obligations,
         "weeks": weeks,
-        "worst_week": _worst(weeks, obligations),
+        "worst_week": worst,
         "kab_tak": decide.kab_tak(RISK_TARGET, base_order=order),
         "order": out_order,
         "fixes": [],
@@ -110,13 +182,28 @@ def answer(scenario):
             {"name": "GST", "value": f"{ledger.GST_RATE:.0%}, due on the 20th of the next month on accrual"},
             {"name": "Kab tak rule", "value": "largest delay keeping shortfall risk at or below the risk target "
                                               "(or today's risk plus the target if already above it)"},
+            {"name": "Contract terms", "value": "45 days for Buyer A, Buyer B, CPSE (MSMED s.15 cap); 30 for small customers"},
             {"name": "Data", "value": "Synthetic ledger"},
         ],
+        # optional explain-the-simulation fields (additive; not in the frozen fixture)
+        "n_paths": int(liq.shape[0]),
+        "n_short_paths": int((sim["shortfall"].sum(axis=1) > 0).sum()),
+        "sample_paths": _sample_paths(sim),
+        "baseline": None if t == "status" else _baseline(),
+        "arrivals": _arrivals(sim),
+        "bridge": _bridge(sim, worst),
+        "kab_tak_curves": [{"buyer": b, "delays": CURVE_DELAYS,
+                            "p_shortfall": [round(decide._run({b: d}, order), 3) for d in CURVE_DELAYS]}
+                           for b in ("Buyer A", "Buyer B", "CPSE")],
     }
+    if t == "status" and not _BASE:
+        _BASE.append(summary)
+    return result
 
 
 def _keys_match(a, f, path=""):
-    assert set(a) == set(f), (path, set(a) ^ set(f))
+    # top level may carry extra optional fields; nested shapes must match exactly
+    assert set(f) <= set(a) if not path else set(a) == set(f), (path, set(a) ^ set(f))
     for k, v in f.items():
         if isinstance(v, dict) and k in ("today", "fan", "worst_week", "order", "scenario"):
             if a[k] is not None:  # order is null unless the scenario has one
@@ -146,6 +233,16 @@ if __name__ == "__main__":
             print("ValueError:", e)
         else:
             raise AssertionError(bad)
+    hero_order = {"party": "New buyer", "amount_inr": 1200000, "terms_days": 90, "advance_pct": 0}
+    for r, o in ((st, None), (hero, hero_order)):   # explain-the-simulation fields
+        assert abs(r["n_short_paths"] / r["n_paths"] - decide._run(None, o)) < 1e-9
+        assert len(r["sample_paths"]) == N_SAMPLE and any(p["short"] for p in r["sample_paths"]) == (r["n_short_paths"] > 0)
+        b = r["bridge"]   # reconciles: start + items = end (within rounding)
+        assert abs(b["start_inr"] + sum(i["amount_inr"] for i in b["items"]) - b["end_inr"]) <= 500 * (len(b["items"]) + 2)
+        # near-monotone: weekly DP recompute lets a few-day shift dodge a Monday, worth ~1 point (Buyer B +10d with the order)
+        assert all(np.all(np.diff(c["p_shortfall"]) >= -0.02) for c in r["kab_tak_curves"]), "curve not monotone"
+        assert all(len(a["due_by_week_inr"]) == len(a["expected_by_week_inr"]) == 13 for a in r["arrivals"])
+    assert st["baseline"] is None and hero["baseline"]["worst_week"] == st["worst_week"]
     print("status worst week:", st["worst_week"], "kab_tak:", st["kab_tak"])
     print("hero worst week:", hero["worst_week"])
     print("hero kab_tak:", hero["kab_tak"])

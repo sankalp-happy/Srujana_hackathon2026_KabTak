@@ -155,6 +155,15 @@ def simulate(extra_delay=None, order=None, extra_obligations=None, n_paths=1000,
     inflow += np.bincount(flat, weights=np.broadcast_to(all_receipt, col.shape).ravel(),
                           minlength=P * (H + 2)).reshape(P, H + 2)
     inflow = inflow[:, 1:H + 1]
+    # mean receipts per day by payer (for the expected-vs-due view and the bridge)
+    payer = np.concatenate([buyer, np.array([order["party"]] if order else [], dtype=object)])
+    by_payer = {}
+    for name in dict.fromkeys(payer):
+        m = payer == name
+        w = np.broadcast_to(all_receipt[m], (P, m.sum())).ravel()
+        by_payer[name] = np.bincount(col[:, m].ravel(), weights=w, minlength=H + 2)[1:H + 1] / P
+    if order:
+        by_payer[order["party"]][6] += g * adv                # the advance lands on day 7
 
     # ---- weekly drawing power: gross unpaid receivables younger than 90 days ----
     dp = np.zeros((P, H))
@@ -175,7 +184,7 @@ def simulate(extra_delay=None, order=None, extra_obligations=None, n_paths=1000,
     dp0 = float(ledger.drawing_power(pos["stock_inr"], g_open[ages < ledger.DP_MAX_AGE].sum()))
     return dict(
         dates=[today + timedelta(days=k) for k in range(1, H + 1)],
-        liquidity=liquidity, shortfall=shortfall, inflow=inflow,
+        liquidity=liquidity, shortfall=shortfall, inflow=inflow, dp=dp, inflow_by_payer=by_payer,
         obligations=[dict(date=r["date"], label=r["label"], amount_inr=int(round(r["amount_inr"]))) for r in obl],
         today=dict(bank_inr=int(pos["bank_inr"]), od_limit_inr=int(pos["od_limit_inr"]),
                    od_drawn_inr=int(pos["od_drawn_inr"]), drawing_power_inr=int(round(dp0)),
