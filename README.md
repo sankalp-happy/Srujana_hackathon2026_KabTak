@@ -33,6 +33,10 @@ Tally export / synthetic ledger
                                                             optimiser: cheapest set of fixes under a risk target
 ```
 
+## Planning docs
+
+Build plan, research notes and event rules: [docs/planning](docs/planning/README.md).
+
 ## Setup
 
 *To be added once the first runnable version is committed.*
