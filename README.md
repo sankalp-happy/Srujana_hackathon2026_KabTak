@@ -19,7 +19,7 @@ The LLM only turns speech or text into a typed scenario. **The simulator and the
 
 ## Persona
 
-The persona is a constructed composite, not a real person: the owner of a 14-person CNC job-work shop in Pune (a micro enterprise). His CA keeps the books in TallyPrime, and he works on WhatsApp in Marathi. His weekly question is "Can I pay wages on the 7th, and should I take this new order?"
+The persona is a constructed composite, not a real person: the owner of a 14-person CNC precision-components shop in Pune (a micro enterprise) that buys its own bar stock. His CA keeps the books in TallyPrime, and he works on WhatsApp in Marathi. His weekly question is "Can I pay wages on the 7th, and should I take this new order?"
 
 ## Architecture (planned)
 
