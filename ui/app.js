@@ -658,24 +658,93 @@ function prefill(s) {
 function setStatus(msg, err) { const st = $("#status"); st.textContent = msg; st.className = `status${err ? " err" : ""}`; }
 
 form.addEventListener("input", (e) => (e.target === form.type ? syncFields() : showJson()));
+const post = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+// Runs a scenario through the engine and redraws; say(msg, err) reports progress. Returns true on success.
+async function run(s, btn, say) {
+  btn.disabled = true; say("Running…");
+  try {
+    const res = await post("/api/answer", s);
+    const body = await res.json();
+    if (!res.ok) { say(body.error || "The engine could not answer.", true); return false; }
+    R = body.result; SOURCE = body.source; step = 0;
+    render();
+    say(body.source === "engine" ? "Answered by the engine." : "Engine not available here, so this shows the saved fixture.");
+    return true;
+  } catch {
+    say("Can't reach the server. Start it with python3 ui/server.py.", true);
+    return false;
+  } finally { btn.disabled = false; }
+}
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const s = scenario();
   const missing = FIELDS[s.type].filter((k) => s[k] == null);
   if (missing.length) return setStatus(`Fill in: ${missing.map((k) => LABEL[k]).join(", ")}.`, true);
-  const btn = form.querySelector(".run");
-  btn.disabled = true; setStatus("Running…");
+  explainRun++; $("#explain").hidden = true;
+  await run(s, form.querySelector(".run"), setStatus);
+});
+
+/* ---------- free-text question: LLM parses, owner confirms, engine runs, LLM explains ---------- */
+const ask = $("#ask");
+let pending = null;   // parsed scenario waiting for "Run it"
+let clarify = null;   // {text, question, first} when the LLM asked a follow-up
+let explainRun = 0;   // ignore stale explanations
+function setAsk(msg, err) { const st = $("#ask-status"); st.hidden = !msg; st.textContent = msg || ""; st.className = `status${err ? " err" : ""}`; }
+
+ask.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const said = ask.q.value.trim();
+  if (!said) return;
+  const text = clarify ? `${clarify.text}\n(Asked: "${clarify.question}" Answer: ${said})` : said;
+  const first = clarify ? clarify.first : said;   // what the owner originally asked, for the header
+  const btn = ask.querySelector('button[type="submit"]');
+  pending = null; $("#readback").hidden = true; btn.disabled = true; setAsk("Reading your question…");
   try {
-    const res = await fetch("/api/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) });
+    const res = await post("/api/parse", { text });
     const body = await res.json();
-    if (!res.ok) return setStatus(body.error || "The engine could not answer.", true);
-    R = body.result; SOURCE = body.source; step = 0;
-    render();
-    setStatus(body.source === "engine" ? "Answered by the engine." : "Engine not available here, so this shows the saved fixture.");
+    if (!res.ok) return setAsk(body.error, true);
+    const s = body.scenario;
+    if (s.needs_clarification) {
+      clarify = { text, question: s.question, first };
+      ask.q.value = ""; ask.q.focus();
+      return setAsk(s.question);
+    }
+    clarify = null; pending = { ...s, transcript: first };
+    $("#rb-text").textContent = scenarioText(s);
+    $("#readback").hidden = false; setAsk("");
+    $("#rb-run").focus();
   } catch {
-    setStatus("Can't reach the server. Start it with python3 ui/server.py.", true);
+    setAsk("Can't reach the server. Start it with python3 ui/server.py.", true);
   } finally { btn.disabled = false; }
 });
+ask.q.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask.requestSubmit(); } });
+
+$("#rb-run").addEventListener("click", async () => {
+  const { lang, ...s } = pending;
+  if (!(await run(s, $("#rb-run"), setAsk))) return;
+  $("#readback").hidden = true;
+  explain(s.transcript, lang);
+});
+$("#rb-edit").addEventListener("click", () => {
+  const { lang, ...s } = pending;
+  prefill(s);
+  $("#byhand").open = true; form.type.focus();
+});
+
+async function explain(question, lang) {
+  const id = ++explainRun, box = $("#explain"), out = $("#explain-text");
+  box.hidden = false; out.lang = lang; out.textContent = "Writing a plain-language summary…"; $("#explain-src").textContent = "";
+  try {
+    const res = await post("/api/explain", { question, lang, result: R });
+    const body = await res.json();
+    if (id !== explainRun) return;
+    if (!res.ok) return (box.hidden = true);
+    out.textContent = body.text;
+    $("#explain-src").textContent = body.source === "llm"
+      ? "Written by an AI model. It can't write numbers itself; every number is filled in from the engine's result."
+      : "Standard sentence: the AI summary was unavailable or didn't pass the number check.";
+  } catch { if (id === explainRun) box.hidden = true; }
+}
 
 /* ---------- view toggle ---------- */
 const VIEWS = ["owner", "ca", "story"];

@@ -46,12 +46,20 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path != "/api/answer":
+        if self.path not in ("/api/answer", "/api/parse", "/api/explain"):
             return self.send_json(404, {"error": "not found"})
         try:
             scenario = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
         except ValueError:
             return self.send_json(400, {"error": "Scenario is not valid JSON."})
+        if self.path != "/api/answer":  # free-text box: LLM parses the question / explains the result
+            import llm
+            try:
+                if self.path == "/api/parse":
+                    return self.send_json(200, {"scenario": llm.parse(scenario["text"])})
+                return self.send_json(200, llm.explain(scenario["question"], scenario["result"], scenario.get("lang")))
+            except Exception as e:
+                return self.send_json(502, {"error": f"Language model unavailable ({e}). Use the form instead."})
         try:
             from engine.answer import answer
         except ImportError:

@@ -223,6 +223,16 @@ textarea { resize: vertical; min-height: 60px; font-family: var(--deva), var(--s
 .run:disabled { opacity: .6; cursor: progress; }
 .status { font-size: 13.5px; margin: 0; padding: 8px 10px; border-radius: 4px; background: #eef2f6; color: var(--ink-2); }
 .status.err { background: var(--ng-bg); color: var(--ng); }
+.ask { display: grid; gap: 10px; margin-bottom: 18px; }
+.ask textarea { min-height: 76px; font-size: 17px; }
+.readback { border: 1px solid var(--blue); background: var(--plan); border-radius: 4px; padding: 12px; display: grid; gap: 10px; }
+.readback p { margin: 0; font-weight: 600; }
+.readback .btns { display: flex; gap: 8px; }
+.readback .btns > * { flex: 1; min-width: 0; }
+details.byhand > summary { cursor: pointer; font-size: 15px; font-weight: 600; color: var(--blue); margin-bottom: 12px; }
+.explain .say-it { font: 400 19px/1.6 var(--deva), var(--sans); margin: 6px 0 0; color: var(--ink); max-width: 70ch; white-space: pre-line; }
+body[data-view="owner"] .explain .say-it { font-size: 22px; }
+.explain .src { font-size: 13px; color: var(--ink-2); margin: 10px 0 0; }
 details.json summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--blue); }
 details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(--rule); border-radius: 4px; padding: 10px; font: 12px/1.45 ui-monospace, Menlo, monospace; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
 
@@ -282,6 +292,12 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
       <div class="nav"><button type="button" class="ghost" id="back">Back</button><span id="stepno" class="muted"></span><button type="button" class="run" id="next">Next</button></div>
     </section>
 
+    <section class="sheet explain no-story" id="explain" aria-labelledby="explain-h" hidden>
+      <h2 id="explain-h">In plain words</h2>
+      <p class="say-it" id="explain-text"></p>
+      <p class="src" id="explain-src"></p>
+    </section>
+
     <section class="sheet verdict no-story" id="verdict" aria-labelledby="verdict-h"></section>
 
     <section class="sheet ca-only" id="today" aria-labelledby="today-h">
@@ -327,7 +343,19 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
 
   <aside class="sheet no-story" aria-labelledby="scn-h">
     <h2 id="scn-h">Ask a question</h2>
-    <p class="sub">Build a scenario and run it through the engine.</p>
+    <p class="sub">Type it in your own words, in Marathi, Hindi or English.</p>
+    <form class="ask" id="ask" novalidate>
+      <label class="sr" for="q">Your question</label>
+      <textarea id="q" name="q" placeholder="बजाजची १२ लाखांची ऑर्डर ९० दिवसांच्या मुदतीवर घेऊ का?"></textarea>
+      <button class="run" type="submit">Ask</button>
+      <p class="status" id="ask-status" role="status" hidden></p>
+      <div class="readback" id="readback" hidden>
+        <span class="muted">Did you mean:</span>
+        <p id="rb-text"></p>
+        <div class="btns"><button class="run" type="button" id="rb-run">Run it</button><button class="ghost" type="button" id="rb-edit">Edit</button></div>
+      </div>
+    </form>
+    <details class="byhand" id="byhand"><summary>Or build it by hand</summary>
     <form id="scn" novalidate>
       <div class="field">
         <label for="f-type">Question type</label>
@@ -354,6 +382,7 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
       <p class="status" id="status" role="status"></p>
       <details class="json"><summary>Scenario JSON</summary><pre id="json"></pre></details>
     </form>
+    </details>
   </aside>
 </div>
 <p class="foot" id="foot"></p>
