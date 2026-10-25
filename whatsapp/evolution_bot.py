@@ -18,9 +18,10 @@ env = os.environ.get
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "engine_result.json"
 
 try:
-    from engine.answer import answer as engine_answer
+    from engine.answer import answer as engine_answer, undo as engine_undo, reset as engine_reset
 except ImportError:  # engine not merged yet
     engine_answer = lambda s: json.loads(FIXTURE.read_text())
+    engine_undo, engine_reset = lambda: None, lambda: 0
 
 # Parser and STT live in ui/llm.py (Groq parse, OpenRouter scribe-v2 -> Whisper); keys come from the env or a git-ignored .env.
 # The LLM only fills the Scenario; the engine does all the numbers.
@@ -33,7 +34,7 @@ except ImportError:
                 "date": None, "obligation": None, "transcript": text,
                 "needs_clarification": False, "question": None}
     transcribe = None
-from whatsapp.reply import format_reply, readback
+from whatsapp.reply import entry_text, format_reply, readback
 
 YES = {"हो", "होय", "हां", "हाँ", "yes", "y", "ok", "okay"}
 NO = {"नाही", "नको", "no", "n"}
@@ -45,7 +46,16 @@ pending: dict[str, dict] = {}  # sender -> scenario awaiting yes/no (demo only)
 def reply_for(sender: str, text: str) -> str:
     words = re.findall(r"\w+", text.lower())  # voice transcripts come with punctuation ("Yes.")
     t = words[0] if words else ""
+    if t == "undo":  # owner entries: undo the last one, or reset to the base data (confirmed first)
+        e = engine_undo()
+        return f"Removed. {entry_text(e)}" if e else "Nothing to undo."
+    if t == "reset":
+        pending[sender] = {"type": "reset"}
+        return "Remove *all* invoices and bills you added and go back to the base data?\n\nReply *yes* or *no*."
     if sender in pending and t in YES:
+        if pending[sender]["type"] == "reset":
+            pending.pop(sender)
+            return f"Back to the base data: removed {engine_reset()} added entries."
         try:
             r = engine_answer(pending.pop(sender))
         except ValueError as e:
@@ -176,4 +186,24 @@ if __name__ == "__main__":
         n = st.call_count
         c.post("/webhook", json=payload({"audioMessage": {}}))
         assert st.call_count == n + 1
+        import tempfile
+        from engine import ledger
+        add = dict(order, type="add_obligation", party="Machine repair", obligation="supplier", amount_inr=200000,
+                   days=None, date="2026-11-10")
+        with mock.patch.object(ledger, "OWNER", Path(tempfile.mkdtemp()) / "e.json"), \
+                mock.patch(f"{__name__}.parse_scenario", return_value=add), mock.patch(f"{__name__}.send_chart"):
+            c.post("/webhook", json=payload({"conversation": "2 lakh machine repair bill due 10 Nov, add it"}))
+            assert "Save this?" in st.call_args[0][1] and not ledger.OWNER.exists()  # nothing saved before yes
+            c.post("/webhook", json=payload({"conversation": "Yes."}))
+            assert "Saved" in st.call_args[0][1] and "→" in st.call_args[0][1] and len(ledger.owner_entries()) == 1
+            c.post("/webhook", json=payload({"conversation": "Undo"}))
+            assert "Removed" in st.call_args[0][1] and ledger.owner_entries() == []
+            c.post("/webhook", json=payload({"conversation": "add it"}))
+            c.post("/webhook", json=payload({"conversation": "yes"}))
+            c.post("/webhook", json=payload({"conversation": "reset"}))
+            assert len(ledger.owner_entries()) == 1  # reset waits for yes
+            c.post("/webhook", json=payload({"conversation": "yes"}))
+            assert "removed 1" in st.call_args[0][1] and ledger.owner_entries() == []
+        from engine.answer import reload
+        reload()
     print("ok")

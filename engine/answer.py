@@ -9,9 +9,10 @@ RISK_TARGET = 0.05
 KEYS = ["type", "party", "amount_inr", "days", "pct", "date", "obligation", "transcript",
         "needs_clarification", "question"]
 SUPPORTED = {"status": [], "new_order": ["party", "amount_inr", "days"],
-             "delay_payment": ["party", "days"], "expense_shock": ["amount_inr", "date"]}
+             "delay_payment": ["party", "days"], "expense_shock": ["amount_inr", "date"],
+             "add_invoice": ["party", "amount_inr", "date"], "add_obligation": ["amount_inr", "date", "obligation"]}
 KNOWN = {"status", "new_order", "delay_payment", "expense_shock", "sales_drop", "supplier_terms",
-         "schedule_change", "payment_received"}
+         "schedule_change", "payment_received", "add_invoice", "add_obligation"}
 
 
 def _check(s):
@@ -32,20 +33,55 @@ def _check(s):
         raise ValueError("amount_inr must be a positive whole number of rupees")
     if "days" in SUPPORTED[t] and (isinstance(d, bool) or not isinstance(d, int) or not 0 <= d <= 365):
         raise ValueError("days must be a whole number from 0 to 365")
-    if t == "delay_payment" and s["party"] not in ledger.BUYERS:
+    if t in ("delay_payment", "add_invoice") and s["party"] not in ledger.BUYERS:
         raise ValueError(f"Unknown party {s['party']!r}; expected one of {', '.join(ledger.BUYERS)}")
+    if t == "add_obligation" and s["obligation"] not in ledger.KINDS:
+        raise ValueError(f"Unknown bill kind {s['obligation']!r}; expected one of {', '.join(ledger.KINDS)}")
     if t == "new_order" and not (isinstance(s["party"], str) and s["party"].strip()):
         raise ValueError("party must be a name")
 
 
-def _shock_date(s):
+def _date(s, back=0):
+    """Scenario date, after today and within the 90-day horizon; `back` days in the past are allowed too."""
     try:
         d = datetime.strptime(s["date"], "%Y-%m-%d").date()
     except (TypeError, ValueError):
         raise ValueError("date must be YYYY-MM-DD")
-    if not ledger.TODAY < d <= ledger.TODAY + timedelta(days=90):
-        raise ValueError("date must fall within the next 90 days")
+    if not ledger.TODAY - timedelta(days=back) < d <= ledger.TODAY + timedelta(days=90):
+        raise ValueError(f"date must fall within the last {back} or next 90 days" if back
+                         else "date must fall within the next 90 days")
     return d
+
+
+def reload():
+    """Drop every cache that holds the ledger; call after an owner entry is added or removed."""
+    sm._CACHE.clear()
+    decide._p.cache_clear()
+    _BASE.clear()
+    ledger._CRED.clear()
+
+
+def _save(s):
+    """Write a confirmed owner entry. GST, TDS and the invoice number are computed in ledger, never by the LLM."""
+    if s["type"] == "add_invoice":
+        e = ledger.add_invoice(s["party"], s["amount_inr"], _date(s, back=365))
+    else:
+        e = ledger.add_obligation(_date(s), s.get("party") or s["obligation"].replace("_", " ").capitalize(),
+                                  s["obligation"], s["amount_inr"])
+    reload()
+    return e
+
+
+def undo():
+    e = ledger.undo_entry()
+    reload()
+    return e
+
+
+def reset():
+    n = ledger.reset_entries()
+    reload()
+    return n
 
 
 def _pct(x, step=1000.0):
@@ -117,6 +153,7 @@ def _bridge(sim, worst):
 
 def _summary(sim, weeks, obligations, p10, p50, p90):
     return {"p_shortfall": round(sm.p_shortfall(sim), 3), "worst_week": _worst(weeks, obligations),
+            "today": {k: int(v) for k, v in sim["today"].items()},
             "fan": {"p10": _pct(p10), "p50": _pct(p50), "p90": _pct(p90)}}
 
 
@@ -133,6 +170,11 @@ def _baseline():
 def answer(scenario):
     _check(scenario)
     t = scenario["type"]
+    if t in ("add_invoice", "add_obligation"):   # save, then answer status on the new data vs the old
+        before = _baseline()
+        entry = _save(scenario)
+        return {**answer({"type": "status"}), "scenario": {k: scenario.get(k) for k in KEYS},
+                "baseline": before, "entry": entry}
     order = delay = extra = None
     if t == "new_order":
         order = {"party": scenario["party"], "amount_inr": scenario["amount_inr"],
@@ -140,7 +182,7 @@ def answer(scenario):
     elif t == "delay_payment":
         delay = {scenario["party"]: scenario["days"]}
     elif t == "expense_shock":
-        extra = [{"date": _shock_date(scenario), "label": "Unplanned expense", "kind": "expense",
+        extra = [{"date": _date(scenario), "label": "Unplanned expense", "kind": "expense",
                   "amount_inr": scenario["amount_inr"]}]
 
     sim = sm.simulate(extra_delay=delay, order=order, extra_obligations=extra)

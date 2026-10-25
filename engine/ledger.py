@@ -28,6 +28,7 @@ TDS_RATE = 0.02          # s.194C: buyers deduct 2% of the taxable value
 MATERIAL_SHARE = 0.45    # bar stock as a share of revenue
 ORDER_MARGIN_PCT = 0.09  # contribution margin on a new order
 BUYERS = ["Buyer A", "Buyer B", "CPSE", "Small customers"]
+KINDS = ["wages", "emi", "gst", "rent", "power", "advance_tax", "bonus", "supplier"]   # obligation kinds
 DP_STOCK_MARGIN = 0.25   # bank keeps 25% back on stock...
 DP_RECV_MARGIN = 0.40   # ...and 40% on receivables
 DP_MAX_AGE = 90          # only receivables younger than 90 days count
@@ -40,6 +41,7 @@ STOCK = 1_600_000       # bar stock + WIP on the shop floor
 PLANTED_MEDIAN_DELAY = {"Buyer A": 64, "Buyer B": 45, "CPSE": 85, "Small customers": 22}
 
 DATA = Path(__file__).resolve().parent.parent / "data" / "synthetic"
+OWNER = DATA.parent / "owner_entries.json"   # owner's real invoices and bills; build() never touches it
 REVENUE = 2_400_000      # taxable Rs per month, before seasonality
 SHARE = {"Buyer A": 0.40, "Buyer B": 0.30, "CPSE": 0.15, "Small customers": 0.15}
 N_INV = {"Buyer A": 4, "Buyer B": 3, "CPSE": 2, "Small customers": 14}   # invoices per month
@@ -159,14 +161,68 @@ def build():
         {"bank_inr": 400_000, "od_limit_inr": OD_LIMIT, "od_drawn_inr": drawn, "stock_inr": int(stock), "creditors_inr": cred}, indent=2))
 
 
+def owner_entries():
+    """[{"table": "invoices" | "obligations", "row": {...}}, ...] in the order they were added."""
+    return json.loads(OWNER.read_text()) if OWNER.exists() else []
+
+
+def _save_entries(es):
+    if es:
+        OWNER.write_text(json.dumps(es, indent=2))
+    else:
+        OWNER.unlink(missing_ok=True)   # no entries = exactly the synthetic base data
+
+
+def _add(table, row):
+    e = {"table": table, "row": row}
+    _save_entries(owner_entries() + [e])
+    return e
+
+
+def add_invoice(buyer, taxable_inr, invoice_date):
+    """Owner's real invoice: GST, gross and TDS use the synthetic ledger's rates and rounding."""
+    n = sum(e["table"] == "invoices" for e in owner_entries()) + 1
+    gst = int(round(taxable_inr * GST_RATE))
+    return _add("invoices", {"invoice_no": f"OWN-{n:04d}", "buyer": buyer, "invoice_date": invoice_date.isoformat(),
+                             "taxable_inr": taxable_inr, "gst_inr": gst, "gross_inr": taxable_inr + gst,
+                             "tds_inr": int(round(taxable_inr * TDS_RATE)), "paid_date": None, "disputed": 0,
+                             "treds_accepted": 0})
+
+
+def add_obligation(d, label, kind, amount_inr):
+    return _add("obligations", {"date": d.isoformat(), "label": label, "kind": kind, "amount_inr": amount_inr})
+
+
+def undo_entry():
+    """Remove the last owner entry; returns it, or None if there was none."""
+    es = owner_entries()
+    last = es.pop() if es else None
+    _save_entries(es)
+    return last
+
+
+def reset_entries():
+    """Drop all owner entries (back to the synthetic base); returns how many were removed."""
+    n = len(owner_entries())
+    _save_entries([])
+    return n
+
+
 def load():
     if not all((DATA / f).exists() for f in ("invoices.csv", "obligations.csv", "position.json")):
         build()
-    inv = pd.read_csv(DATA / "invoices.csv")
+    own = owner_entries()
+
+    def merge(df, table):   # base rows untouched when there are no entries, so the baseline is exact
+        rows = [e["row"] for e in own if e["table"] == table]
+        df = df.assign(source="synthetic")
+        return pd.concat([df, pd.DataFrame(rows).assign(source="owner")], ignore_index=True) if rows else df
+
+    inv = merge(pd.read_csv(DATA / "invoices.csv"), "invoices")
     for c in ("invoice_date", "paid_date"):
         inv[c] = pd.to_datetime(inv[c]).dt.date
     inv["paid_date"] = inv.paid_date.astype(object).where(inv.paid_date.notna(), None)
-    obl = pd.read_csv(DATA / "obligations.csv")
+    obl = merge(pd.read_csv(DATA / "obligations.csv"), "obligations")
     obl["date"] = pd.to_datetime(obl["date"]).dt.date
     return inv, obl, json.loads((DATA / "position.json").read_text())
 
@@ -176,7 +232,7 @@ if __name__ == "__main__":
     inv, obl, pos = load()
     cols = ["invoice_no", "buyer", "invoice_date", "taxable_inr", "gst_inr", "gross_inr", "tds_inr",
             "paid_date", "disputed", "treds_accepted"]
-    assert list(inv.columns) == cols and list(obl.columns) == ["date", "label", "kind", "amount_inr"]
+    assert list(inv.columns) == cols + ["source"] and list(obl.columns) == ["date", "label", "kind", "amount_inr", "source"]
     assert set(inv.buyer) == set(BUYERS)
 
     open_ = inv[(inv.invoice_date <= TODAY) & inv.paid_date.isna()]
@@ -192,7 +248,7 @@ if __name__ == "__main__":
     # CPSE is right-censored (slow payers are still open), so its paid-only median reads low
     assert 0.6 * PLANTED_MEDIAN_DELAY["CPSE"] <= emp["CPSE"] <= 1.05 * PLANTED_MEDIAN_DELAY["CPSE"], emp["CPSE"]
 
-    assert set(obl.kind) == {"supplier", "wages", "emi", "gst", "rent", "power", "advance_tax", "bonus"}
+    assert set(obl.kind) == set(KINDS)
     assert obl.date.min() > TODAY and obl.date.max() <= HORIZON_END
     assert all(d.day == 20 for d in obl[obl.kind == "gst"].date)
     assert all(d.day == 7 for d in obl[obl.kind == "wages"].date)
