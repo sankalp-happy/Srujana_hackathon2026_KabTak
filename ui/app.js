@@ -689,7 +689,22 @@ const ask = $("#ask");
 let pending = null;   // parsed scenario waiting for "Run it"
 let clarify = null;   // {text, question, first} when the LLM asked a follow-up
 let explainRun = 0;   // ignore stale explanations
-function setAsk(msg, err) { const st = $("#ask-status"); st.hidden = !msg; st.textContent = msg || ""; st.className = `status${err ? " err" : ""}`; }
+/* Clear button + the follow-up question box. Clear shows whenever there is anything to clear. */
+function showClarify() {
+  $("#clarify").hidden = !clarify;
+  if (clarify) { $("#clarify-q").textContent = clarify.question; $("#clarify-first").textContent = clarify.first; }
+}
+function syncClear() {
+  $("#clear").hidden = !(clarify || pending || ask.q.value.trim() || !$("#explain").hidden || !$("#ask-status").hidden);
+}
+$("#clear").addEventListener("click", () => {
+  clarify = null; pending = null; explainRun++;   // explainRun++ drops an explanation still being written
+  ask.q.value = ""; setAsk(""); showClarify();
+  $("#readback").hidden = true; $("#explain").hidden = true;
+  syncClear(); ask.q.focus();
+});
+ask.q.addEventListener("input", syncClear);
+function setAsk(msg, err) { const st = $("#ask-status"); st.hidden = !msg; st.textContent = msg || ""; st.className = `status${err ? " err" : ""}`; syncClear(); }
 
 ask.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -706,10 +721,10 @@ ask.addEventListener("submit", async (e) => {
     const s = body.scenario;
     if (s.needs_clarification) {
       clarify = { text, question: s.question, first };
-      ask.q.value = ""; ask.q.focus();
-      return setAsk(s.question);
+      ask.q.value = ""; ask.q.focus(); showClarify();
+      return setAsk("");
     }
-    clarify = null; pending = { ...s, transcript: first };
+    clarify = null; showClarify(); pending = { ...s, transcript: first };
     $("#rb-text").textContent = scenarioText(s);
     $("#readback").hidden = false; setAsk("");
     $("#rb-run").focus();
@@ -767,7 +782,7 @@ $("#rb-edit").addEventListener("click", () => {
 
 async function explain(question, lang) {
   const id = ++explainRun, box = $("#explain"), out = $("#explain-text");
-  box.hidden = false; out.lang = lang; out.textContent = "Writing a plain-language summary…"; $("#explain-src").textContent = "";
+  box.hidden = false; syncClear(); out.lang = lang; out.textContent = "Writing a plain-language summary…"; $("#explain-src").textContent = "";
   try {
     const res = await post("/api/explain", { question, lang, result: R });
     const body = await res.json();

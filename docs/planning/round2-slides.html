@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kab Tak? Round 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0b1b2b;--bg2:#12304f;--ink:#eaf1f8;--mute:#8fa5ba;--line:rgba(255,255,255,.12);--card:rgba(255,255,255,.055);--blue:#6fa8e8;--ok:#4fc58a;--watch:#f0b04a;--ng:#ef6f63;--vio:#b49cf0;--sans:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;--cond:"Barlow Semi Condensed","Barlow",system-ui,sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#050d16;color:var(--ink);font-family:var(--sans);overflow:hidden}
+.deck{position:absolute;inset:0;margin:auto;width:min(100vw,calc(100vh*16/9));height:min(100vh,calc(100vw*9/16));overflow:hidden;font-size:2.2vmin}
+.slide{position:absolute;inset:0;padding:3.2em 4em 2.6em;display:none;flex-direction:column;gap:1em;background:radial-gradient(120% 90% at 0% 0%,var(--bg2),var(--bg) 62%)}
+.slide.active{display:flex}
+.k{font:700 .78em var(--cond);letter-spacing:.18em;text-transform:uppercase;color:var(--blue)}
+h1{font:700 3.6em/1.02 var(--cond)}
+h2{font:700 2em/1.1 var(--cond);max-width:30em}
+h2 em,h1 em{font-style:normal;color:var(--blue)}
+.sub{font-size:1.15em;color:var(--mute);max-width:36em;line-height:1.35}
+.body{flex:1;min-height:0;display:grid;gap:1.6em;align-items:stretch}
+.c2{grid-template-columns:1.55fr 1fr}.c2b{grid-template-columns:1fr 1.4fr}.c3{grid-template-columns:repeat(3,1fr)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:.7em;padding:1em 1.2em;display:flex;flex-direction:column;min-height:0;min-width:0}
+.panel h3{font:700 .8em var(--cond);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin-bottom:.5em}
+.cv{position:relative;flex:1;min-height:0}
+.pt{display:grid;gap:.7em;font-size:.95em;line-height:1.35;align-content:start}
+.pt b{color:#fff}.pt .m{color:var(--mute)}
+.stat{display:flex;flex-direction:column;gap:.1em;padding:.2em 0}
+.stat .n{font:700 3em/1 var(--cond)}.stat .l{color:var(--mute);font-size:.85em}
+.g{color:var(--ok)}.r{color:var(--ng)}.a{color:var(--watch)}.b{color:var(--blue)}
+.tag{display:inline-block;font:700 .7em var(--cond);letter-spacing:.1em;padding:.2em .7em;border-radius:99px;margin-right:.5em}
+.t-ok{background:rgba(79,197,138,.16);color:var(--ok)}.t-no{background:rgba(239,111,99,.16);color:var(--ng)}.t-w{background:rgba(240,176,74,.16);color:var(--watch)}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.85em;background:rgba(255,255,255,.08);padding:.05em .35em;border-radius:.3em}
+.pipe{display:flex;align-items:stretch;gap:.5em}
+.pipe .s{flex:1;border:1px solid var(--line);background:var(--card);border-radius:.6em;padding:.8em;font-size:.85em;line-height:1.3}
+.pipe .s b{display:block;font:700 1.1em var(--cond);margin-bottom:.3em}
+.pipe .ar{align-self:center;color:var(--mute);font-size:1.4em}
+.pipe .llm{border-color:var(--vio)}.pipe .llm b{color:var(--vio)}
+.pipe .eng{border-color:var(--ok)}.pipe .eng b{color:var(--ok)}
+.rule{border-left:.25em solid var(--vio);padding:.4em 1em;background:rgba(180,156,240,.08);font-size:1.05em;line-height:1.35;border-radius:0 .5em .5em 0}
+.ladder{display:grid;gap:.45em}
+.ladder div{display:grid;grid-template-columns:7em 1fr;gap:1em;align-items:center;font-size:1.05em}.ladder{gap:1em}
+.ladder i{display:block;height:1.5em;border-radius:.3em;font-style:normal;font:700 .8em/1.9em var(--cond);padding-left:.6em;color:#06121e}
+table{border-collapse:collapse;width:100%;font-size:.95em}
+td,th{text-align:left;padding:.55em .6em;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:700 .8em var(--cond);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.gantt{display:grid;gap:.5em;font-size:.85em}
+.gantt .row{display:grid;grid-template-columns:15em 1fr;gap:1em;align-items:center}
+.gantt .trk{position:relative;height:1.8em;background:rgba(255,255,255,.05);border-radius:.3em}
+.gantt .bar{position:absolute;top:0;bottom:0;border-radius:.3em;font:700 .8em/2.25em var(--cond);padding-left:.6em;color:#06121e;white-space:nowrap}
+.axis{display:grid;grid-template-columns:15em 1fr;gap:1em;color:var(--mute);font-size:.75em}
+.axis div:last-child{display:flex;justify-content:space-between}
+.pb{position:fixed;top:0;left:0;height:.3vmin;background:var(--blue);transition:width .3s;z-index:9}
+.nv{position:fixed;bottom:.8vmin;right:1.4vmin;color:var(--mute);font-size:max(11px,1.5vmin);z-index:9}
+</style>
+</head>
+<body>
+<div class="pb" id="pb"></div>
+<div class="deck" id="deck">
+
+<!-- 1 title -->
+<section class="slide" style="justify-content:center">
+  <div class="k">Srujana 2026 · Finance F-03 · Jury round 2</div>
+  <h1>Kab Tak?<br><em>When will the money arrive,<br>and can I afford this order?</em></h1>
+  <p class="sub">Predictive cash flow for a Pune CNC micro-enterprise. 1,000 simulated futures, one rule: the LLM never does the maths. All data is synthetic and labelled so.</p>
+</section>
+
+<!-- 2 hero -->
+<section class="slide">
+  <div class="k">The question an owner actually asks</div>
+  <h2>"Can I take a ₹12 L order on 90-day terms?"<br><em>Today the answer is a guess. Here it is a number.</em></h2>
+  <div class="body c2">
+    <div class="panel"><h3>Chance of a missed payment, by week (with the order)</h3><div class="cv"><canvas id="cWeeks"></canvas></div></div>
+    <div style="display:grid;gap:1em;align-content:start">
+      <div class="panel"><div class="stat"><span class="n g" id="sBase"></span><span class="l">chance of a shortfall in 90 days, today</span></div></div>
+      <div class="panel"><div class="stat"><span class="n r" id="sOrder"></span><span class="l">with the order on 90-day terms</span></div></div>
+      <div class="panel pt"><span><b>Engine's answer:</b> an advance of at least <b id="sAdv"></b> makes it safe at 90 days. Shorter terms alone cannot.</span><span class="m">Risk target: 5%. The worst week is the one with the Diwali bonus, power and bar-stock bills.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 architecture -->
+<section class="slide">
+  <div class="k">How it works</div>
+  <h2>The LLM only <em style="color:var(--vio)">parses and phrases</em>.<br>The engine owns every number.</h2>
+  <div class="pipe" style="margin-top:.6em;flex:none">
+    <div class="s llm"><b>Owner asks</b>Voice or text in Marathi, Hindi, English. Scribe-v2 via OpenRouter, Groq Whisper fallback.</div><span class="ar">→</span>
+    <div class="s llm"><b>LLM parses</b>gpt-oss-120b turns it into a typed scenario. The owner confirms the read-back.</div><span class="ar">→</span>
+    <div class="s eng"><b>Kaplan-Meier</b>Payment-delay curve per buyer, using unpaid invoices correctly.</div><span class="ar">→</span>
+    <div class="s eng"><b>Monte Carlo</b>1,000 paths × 90 days, shared buyer shock, drawing power.</div><span class="ar">→</span>
+    <div class="s eng"><b>Decisions</b>kab_tak and order_terms by search on the same paths.</div><span class="ar">→</span>
+    <div class="s llm"><b>LLM phrases</b>Writes 3-4 sentences. Any number the engine did not produce is dropped.</div>
+  </div>
+  <div class="body c3" style="margin-top:.6em;align-items:start;flex:none">
+    <div class="panel pt"><h3 style="color:var(--ok)">Engine (numpy + pandas, 898 lines)</h3><span>Deterministic with a seed. Same random numbers in every scenario, so comparisons are clean.</span></div>
+    <div class="panel pt"><h3 style="color:var(--vio)">LLM (Groq, OpenRouter)</h3><span>Never computes. If the first sentence fails the number check, a fixed template answer is shown instead.</span></div>
+    <div class="panel pt"><h3>One risk definition</h3><span>A <b>shortfall</b> is an obligation that bank balance plus undrawn drawing power cannot cover. Target: at most 5% chance in 90 days.</span></div>
+  </div>
+</section>
+
+<!-- 4 KM -->
+<section class="slide">
+  <div class="k">Step 1 · When will each buyer pay?</div>
+  <h2>Kaplan-Meier per buyer, because <em>unpaid invoices are information</em></h2>
+  <div class="body c2">
+    <div class="panel"><h3>Share of invoices still unpaid, by days since invoice (from the 24-month ledger)</h3><div class="cv"><canvas id="cKM"></canvas></div></div>
+    <div class="panel pt">
+      <span><b>Why not a plain average?</b> Slow payers are still open. Averaging only paid invoices makes everyone look fast. KM treats an open invoice as "survived this long".</span>
+      <span><b>Sampling:</b> a 60-day-old CPSE invoice is drawn from the conditional curve, so it is never "paid on day 20".</span>
+      <span><b>Check:</b> fitted medians match the planted ones within 15% (or 6 days).</span>
+      <span class="m">Planted medians, invoice to payment: Buyer A 64 days, Buyer B 45, CPSE 85, small customers 22. Synthetic data, so this is a self-check, not external validation.</span>
+    </div>
+  </div>
+</section>
+
+<!-- 5 MC -->
+<section class="slide">
+  <div class="k">Step 2 · 1,000 simulated futures</div>
+  <h2>One shared shock per buyer: <em>a late buyer is late on every invoice</em></h2>
+  <div class="body c2">
+    <div class="panel"><h3>Bank + undrawn limit, ₹ lakh. Band = P10 to P90 of 1,000 paths. Faint lines = individual paths (with the ₹12 L order)</h3><div class="cv"><canvas id="cFan"></canvas></div></div>
+    <div class="panel pt">
+      <span><b>How a path is drawn:</b> each buyer gets one random shock <code>z_b</code>, each invoice its own <code>z_i</code>. Mix: <code>ρ·z_b + √(1−ρ²)·z_i</code>, with ρ = 0.6.</span>
+      <span><b>Why it matters:</b> independent draws average out and look safe. Shared shocks keep the bad scenarios.</span>
+      <span><b>Quarter-end:</b> 30% of paths slip every payment near quarter-end by about a week.</span>
+      <span><b>Daily loop:</b> receipts, then obligations. Shortfall only counts on days with an obligation due.</span>
+      <span class="m">Orange dashed line = ₹0 of liquidity. ρ = 0.6 and the 0.3 slip are our assumptions, not fitted.</span>
+    </div>
+  </div>
+</section>
+
+<!-- 6 bridge / drawing power -->
+<section class="slide">
+  <div class="k">Step 3 · Where the week goes wrong</div>
+  <h2>A late buyer <em>delays the cash and shrinks the limit</em></h2>
+  <div class="body c2">
+    <div class="panel"><h3>Bridge for the worst week (9 Nov), ₹ lakh: start + receipts − obligations ± drawing power = end</h3><div class="cv"><canvas id="cBridge"></canvas></div></div>
+    <div class="panel pt">
+      <span><b>Drawing power</b> is the bank's cap on borrowing, recomputed every Monday: <code>min(limit, 0.75 × (stock − unpaid bills) + 0.60 × receivables younger than 90 days)</code>.</span>
+      <span><b>The double hit:</b> as an invoice passes 90 days it stops counting, so the limit falls just when cash is short.</span>
+      <span class="m">Today: bank ₹4.0 L, limit ₹42 L, drawn ₹23.8 L, drawing power about ₹29.1 L. The 25% / 40% margins and the 90-day rule are our assumptions. Check with a banker or CA.</span>
+    </div>
+  </div>
+</section>
+
+<!-- 7 kab tak -->
+<section class="slide">
+  <div class="k">Step 4 · The answer, not just the risk</div>
+  <h2><em>"Kab tak?"</em> How late can each buyer be before we breach 5%?</h2>
+  <div class="body c2">
+    <div class="panel"><h3>Chance of a shortfall vs. extra days late (with the order in)</h3><div class="cv"><canvas id="cKT"></canvas></div></div>
+    <div style="display:grid;gap:1em;align-content:start">
+      <div class="panel pt"><h3>Longest delay that keeps risk in range</h3>
+        <div class="stat"><span class="l">Buyer A</span><span class="n" id="kA"></span></div>
+        <div class="stat"><span class="l">Buyer B</span><span class="n" id="kB"></span></div>
+        <div class="stat"><span class="l">CPSE</span><span class="n" id="kC"></span></div></div>
+      <div class="panel pt"><span><b>order_terms</b> uses the same bisection. Here: safe terms are <b id="oT"></b> days, so the engine asks for at least <b id="oA"></b> advance.</span><span class="m">When risk is already above 5%, the threshold is today's risk + 5 points.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 guardrails -->
+<section class="slide">
+  <div class="k">Where the LLM is allowed</div>
+  <h2>Graded plain-language answer, <em>with a digits-only number check</em></h2>
+  <div class="body c2b">
+    <div class="panel"><h3>Verdict, graded by the riskiest week's chance of a missed payment</h3>
+      <div class="ladder" style="margin-top:.4em">
+        <div><span>up to 5%</span><i style="background:var(--ok);width:28%">YES, safe</i></div>
+        <div><span>5% to 25%</span><i style="background:var(--watch);width:50%">YES, BUT TIGHT</i></div>
+        <div><span>25% to 50%</span><i style="background:#f08a4a;width:75%">RISKY</i></div>
+        <div><span>over 50%</span><i style="background:var(--ng);width:100%">NO, NOT AS THINGS STAND</i></div>
+      </div>
+      <p class="sub" style="margin-top:1em;font-size:.9em">Stops the model from saying "no" to a risk that is only a little over the limit.</p></div>
+    <div style="display:grid;gap:1em;align-content:start">
+      <div class="rule">Every number in the answer must be a value the engine produced, or one from the owner's own question. A sentence that breaks this is dropped.</div>
+      <div class="panel pt"><span><span class="tag t-ok">CATCHES</span>invented rupee amounts, wrong days, Devanagari digits handled</span>
+      <span><span class="tag t-w">LIMIT</span>digits only. A number spelled as a word, or a real number used for the wrong thing, can still get through. The prompt and field names guard that.</span>
+      <span><span class="tag t-w">LIMIT</span>one sum, the advance in rupees, is done in <code>llm.py</code>, not the engine.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 status -->
+<section class="slide">
+  <div class="k">Honest status</div>
+  <h2>What works today, <em>and what does not yet</em></h2>
+  <div class="body c2" style="grid-template-columns:1fr 1fr">
+    <div class="panel"><h3>Built and checked in code</h3>
+      <table>
+        <tr><td><span class="tag t-ok">DONE</span>Kaplan-Meier per buyer, open invoices censored</td></tr>
+        <tr><td><span class="tag t-ok">DONE</span>1,000-path Monte Carlo, shared buyer shock</td></tr>
+        <tr><td><span class="tag t-ok">DONE</span>Drawing power drops receivables over 90 days</td></tr>
+        <tr><td><span class="tag t-ok">DONE</span>GST on accrual, TDS on receipts</td></tr>
+        <tr><td><span class="tag t-ok">DONE</span>kab_tak and order_terms</td></tr>
+        <tr><td><span class="tag t-ok">DONE</span>Owner, CA, Story views; voice and text in mr / hi / en</td></tr>
+        <tr><td><span class="tag t-ok">DONE</span>Graded summary, number check, Docker</td></tr>
+      </table></div>
+    <div class="panel"><h3>Not built</h3>
+      <table>
+        <tr><td><span class="tag t-no">NEXT</span><b>Fix search.</b> <code>fixes: []</code>, <code>plan: null</code>. We give risk and limits, not a bundle of fixes.</td></tr>
+        <tr><td><span class="tag t-no">NO</span>WhatsApp: adapter on an unmerged branch, main webhook not wired to the engine</td></tr>
+        <tr><td><span class="tag t-no">NO</span>Legal levers, TReDS discounting, Xero-style comparison</td></tr>
+        <tr><td><span class="tag t-no">NO</span>External validation (IBM sample), hazard model with features</td></tr>
+        <tr><td><span class="tag t-no">NO</span>sales_drop, supplier_terms, schedule_change, payment_received: parsed, then "not supported yet"</td></tr>
+      </table></div>
+  </div>
+</section>
+
+<!-- 10 caveats -->
+<section class="slide">
+  <div class="k">What you should not over-trust</div>
+  <h2>The data is synthetic, and <em>the assumptions are ours</em></h2>
+  <div class="body c3" style="font-size:1.25em">
+    <div class="panel pt"><h3>Synthetic</h3><span>Pune CNC shop, labelled synthetic on every screen. The model is checked against payment behaviour we planted, not against real data. No backtest yet.</span></div>
+    <div class="panel pt"><h3>Assumptions, not fitted</h3><span>Buyer correlation <b>0.6</b>. Quarter-end slip <b>0.3</b>. Drawing-power margins <b>25% / 40%</b>. The <b>90-day</b> rule.</span><span class="m">Verify with a banker or CA before calling any of it bank practice.</span></div>
+    <div class="panel pt"><h3>Simplifications</h3><span>One risk definition for everything. Stock and supplier bills held constant. The new order is invoiced on day 30 and uses Buyer B's curve for its slip.</span></div>
+  </div>
+</section>
+
+<!-- 11 plan -->
+<section class="slide">
+  <div class="k">Next 20 hours · video due at hour 36</div>
+  <h2>First, <em>from "here is your risk" to "here is what to do"</em></h2>
+  <div class="gantt" style="margin-top:.4em">
+    <div class="row"><span><b>1 · Fix search</b> (hard stop at h8)</span><div class="trk"><div class="bar" style="left:0;width:40%;background:var(--blue)">greedy search on the same 1,000 paths</div></div></div>
+    <div class="row"><span><b>2 · Wire into UI and summary</b></span><div class="trk"><div class="bar" style="left:40%;width:15%;background:var(--vio)">UI</div></div></div>
+    <div class="row"><span><b>3 · Validation slide</b></span><div class="trk"><div class="bar" style="left:55%;width:10%;background:var(--watch)">what is validated</div></div></div>
+    <div class="row"><span><b>4 · Demo video</b></span><div class="trk"><div class="bar" style="left:65%;width:20%;background:var(--ok)">record + edit</div></div></div>
+    <div class="row"><span><b>5 · Rehearsal and Q&amp;A</b></span><div class="trk"><div class="bar" style="left:85%;width:15%;background:var(--ng)">rehearse</div></div></div>
+    <div class="axis"><div></div><div><span>h0</span><span>h5</span><span>h10</span><span>h15</span><span>h20</span></div></div>
+  </div>
+  <div class="body c2" style="grid-template-columns:1fr 1fr;flex:none">
+    <div class="panel pt"><span><b>Version 1 fixes:</b> defer a payment (overdraft-aware), ask for an advance, change order terms. Only what the engine already models.</span></div>
+    <div class="panel pt"><span><b>If fix search is not working at hour 8,</b> we ship without it and say so. WhatsApp merge and legal levers only if time remains.</span></div>
+  </div>
+</section>
+
+<!-- 12 close -->
+<section class="slide" style="justify-content:center">
+  <div class="k">Kab Tak?</div>
+  <h1>We tell you the risk,<br>and what we don't know.<br><em>Next: what to do about it.</em></h1>
+</section>
+
+</div>
+<div class="nv"><span id="cur">1</span> / <span id="tot"></span> · ← → to move</div>
+
+<script>
+const D={"today": {"bank_inr": 400000, "od_limit_inr": 4200000, "od_drawn_inr": 2380000, "drawing_power_inr": 2908543, "headroom_inr": 528543, "receivable_inr": 4708672, "overdue_45_inr": 2640840}, "fan": {"dates": ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15", "2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22", "2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26", "2026-11-27", "2026-11-28", "2026-11-29", "2026-11-30", "2026-12-01", "2026-12-02", "2026-12-03", "2026-12-04", "2026-12-05", "2026-12-06", "2026-12-07", "2026-12-08", "2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13", "2026-12-14", "2026-12-15", "2026-12-16", "2026-12-17", "2026-12-18", "2026-12-19", "2026-12-20", "2026-12-21", "2026-12-22", "2026-12-23", "2026-12-24", "2026-12-25", "2026-12-26", "2026-12-27", "2026-12-28", "2026-12-29", "2026-12-30", "2026-12-31", "2027-01-01", "2027-01-02", "2027-01-03", "2027-01-04", "2027-01-05", "2027-01-06", "2027-01-07", "2027-01-08", "2027-01-09", "2027-01-10", "2027-01-11", "2027-01-12", "2027-01-13", "2027-01-14", "2027-01-15", "2027-01-16", "2027-01-17", "2027-01-18", "2027-01-19", "2027-01-20", "2027-01-21", "2027-01-22", "2027-01-23"], "p10": [1088000.0, 1088000.0, 1116000.0, 1200000.0, 1347000.0, 958000.0, 398000.0, 495000.0, 544000.0, 575000.0, 198000.0, 225000.0, -71000.0, -13000.0, 151000.0, -1000.0, 28000.0, 70000.0, 119000.0, -338000.0, -273000.0, 160000.0, 198000.0, 276000.0, 315000.0, 182000.0, 217000.0, 258000.0, 489000.0, 550000.0, 627000.0, 670000.0, 719000.0, 745000.0, 793000.0, 1663000.0, 1086000.0, 1131000.0, 1161000.0, 1239000.0, 1153000.0, 1231000.0, 944000.0, 988000.0, 1031000.0, 922000.0, 983000.0, 1039000.0, 1077000.0, 1259000.0, 581000.0, 650000.0, 704000.0, 766000.0, 834000.0, 561000.0, 818000.0, 862000.0, 897000.0, 967000.0, 976000.0, 1006000.0, 1037000.0, 1048000.0, 1071000.0, 1112000.0, 529000.0, 636000.0, 808000.0, 1012000.0, 1169000.0, 1207000.0, 1298000.0, 1095000.0, 1141000.0, 1232000.0, 1137000.0, 1242000.0, 1347000.0, 1417000.0, 927000.0, 1008000.0, 1097000.0, 1168000.0, 1253000.0, 1328000.0, 1170000.0, 1243000.0, 1349000.0, 1450000.0], "p50": [1164000.0, 1237000.0, 1452000.0, 1536000.0, 1699000.0, 1277000.0, 757000.0, 674000.0, 771000.0, 845000.0, 512000.0, 569000.0, 300000.0, 371000.0, 383000.0, 255000.0, 320000.0, 368000.0, 431000.0, 7000.0, 86000.0, 417000.0, 460000.0, 555000.0, 603000.0, 490000.0, 539000.0, 582000.0, 770000.0, 846000.0, 904000.0, 969000.0, 1015000.0, 1056000.0, 1102000.0, 1973000.0, 1391000.0, 1472000.0, 1508000.0, 1567000.0, 1502000.0, 1580000.0, 1347000.0, 1387000.0, 1432000.0, 1337000.0, 1395000.0, 1472000.0, 1528000.0, 1691000.0, 1012000.0, 1090000.0, 1150000.0, 1214000.0, 1288000.0, 1051000.0, 1403000.0, 1445000.0, 1485000.0, 1553000.0, 1595000.0, 1629000.0, 1694000.0, 1830000.0, 1898000.0, 1970000.0, 1454000.0, 1501000.0, 1620000.0, 1751000.0, 1768000.0, 1797000.0, 1872000.0, 1659000.0, 1736000.0, 1800000.0, 1724000.0, 1988000.0, 2080000.0, 2136000.0, 1626000.0, 1695000.0, 1794000.0, 1867000.0, 1954000.0, 2016000.0, 1889000.0, 1978000.0, 2070000.0, 2167000.0], "p90": [1318000.0, 1536000.0, 1778000.0, 1958000.0, 2128000.0, 1750000.0, 1245000.0, 903000.0, 1086000.0, 1193000.0, 896000.0, 972000.0, 711000.0, 782000.0, 632000.0, 538000.0, 613000.0, 695000.0, 784000.0, 364000.0, 454000.0, 643000.0, 753000.0, 827000.0, 881000.0, 784000.0, 837000.0, 916000.0, 1005000.0, 1077000.0, 1163000.0, 1225000.0, 1275000.0, 1349000.0, 1403000.0, 2202000.0, 1656000.0, 1740000.0, 1813000.0, 1911000.0, 1865000.0, 1942000.0, 1598000.0, 1651000.0, 1726000.0, 1655000.0, 1737000.0, 1813000.0, 1897000.0, 1943000.0, 1297000.0, 1394000.0, 1517000.0, 1609000.0, 1689000.0, 1475000.0, 1716000.0, 1786000.0, 1834000.0, 1957000.0, 2013000.0, 2121000.0, 2238000.0, 2285000.0, 2365000.0, 2478000.0, 1992000.0, 2023000.0, 2167000.0, 2254000.0, 2090000.0, 2139000.0, 2258000.0, 2098000.0, 2164000.0, 2243000.0, 2157000.0, 2440000.0, 2499000.0, 2547000.0, 2051000.0, 2120000.0, 2215000.0, 2357000.0, 2339000.0, 2413000.0, 2364000.0, 2424000.0, 2537000.0, 2666000.0]}, "base": {"p10": [1088000.0, 1088000.0, 1116000.0, 1200000.0, 1347000.0, 958000.0, 938000.0, 1035000.0, 1084000.0, 1115000.0, 738000.0, 765000.0, 469000.0, 527000.0, 691000.0, 539000.0, 568000.0, 610000.0, 659000.0, 202000.0, 267000.0, 700000.0, 738000.0, 816000.0, 855000.0, 722000.0, 757000.0, 798000.0, 1029000.0, 1090000.0, 1167000.0, 1210000.0, 1259000.0, 1285000.0, 1333000.0, 1362000.0, 784000.0, 838000.0, 869000.0, 944000.0, 861000.0, 931000.0, 645000.0, 686000.0, 726000.0, 633000.0, 676000.0, 732000.0, 779000.0, 960000.0, 274000.0, 346000.0, 396000.0, 464000.0, 536000.0, 372000.0, 848000.0, 874000.0, 906000.0, 939000.0, 967000.0, 1004000.0, 1026000.0, 1361000.0, 1384000.0, 1414000.0, 834000.0, 908000.0, 1041000.0, 1255000.0, 1190000.0, 1176000.0, 1252000.0, 1042000.0, 1094000.0, 1161000.0, 1088000.0, 1594000.0, 1662000.0, 1718000.0, 1195000.0, 1253000.0, 1345000.0, 1396000.0, 1497000.0, 1545000.0, 1361000.0, 1462000.0, 1532000.0, 1615000.0], "p50": [1164000.0, 1237000.0, 1452000.0, 1536000.0, 1699000.0, 1277000.0, 1297000.0, 1214000.0, 1311000.0, 1385000.0, 1052000.0, 1109000.0, 840000.0, 911000.0, 923000.0, 795000.0, 860000.0, 908000.0, 971000.0, 547000.0, 626000.0, 957000.0, 1000000.0, 1095000.0, 1143000.0, 1030000.0, 1079000.0, 1122000.0, 1310000.0, 1386000.0, 1444000.0, 1509000.0, 1555000.0, 1596000.0, 1642000.0, 1664000.0, 1082000.0, 1163000.0, 1199000.0, 1260000.0, 1194000.0, 1273000.0, 1038000.0, 1079000.0, 1125000.0, 1028000.0, 1087000.0, 1164000.0, 1221000.0, 1381000.0, 702000.0, 782000.0, 841000.0, 905000.0, 981000.0, 861000.0, 1265000.0, 1324000.0, 1354000.0, 1407000.0, 1440000.0, 1504000.0, 1551000.0, 1788000.0, 1844000.0, 1906000.0, 1376000.0, 1433000.0, 1565000.0, 1692000.0, 1598000.0, 1628000.0, 1708000.0, 1511000.0, 1586000.0, 1649000.0, 1567000.0, 2003000.0, 2087000.0, 2135000.0, 1626000.0, 1686000.0, 1781000.0, 1860000.0, 1898000.0, 1952000.0, 1814000.0, 1908000.0, 1982000.0, 2097000.0], "p90": [1318000.0, 1536000.0, 1778000.0, 1958000.0, 2128000.0, 1750000.0, 1785000.0, 1443000.0, 1626000.0, 1733000.0, 1436000.0, 1512000.0, 1251000.0, 1322000.0, 1172000.0, 1078000.0, 1153000.0, 1235000.0, 1324000.0, 904000.0, 994000.0, 1183000.0, 1293000.0, 1367000.0, 1421000.0, 1324000.0, 1377000.0, 1456000.0, 1545000.0, 1617000.0, 1703000.0, 1765000.0, 1815000.0, 1889000.0, 1943000.0, 1893000.0, 1347000.0, 1433000.0, 1504000.0, 1605000.0, 1556000.0, 1637000.0, 1289000.0, 1341000.0, 1417000.0, 1346000.0, 1428000.0, 1503000.0, 1587000.0, 1634000.0, 987000.0, 1087000.0, 1207000.0, 1301000.0, 1379000.0, 1285000.0, 1525000.0, 1609000.0, 1651000.0, 1784000.0, 1864000.0, 1954000.0, 2072000.0, 2095000.0, 2207000.0, 2304000.0, 1841000.0, 1882000.0, 2024000.0, 2132000.0, 1899000.0, 1960000.0, 2097000.0, 1936000.0, 2009000.0, 2089000.0, 2011000.0, 2249000.0, 2366000.0, 2439000.0, 1944000.0, 2027000.0, 2153000.0, 2275000.0, 2148000.0, 2248000.0, 2188000.0, 2304000.0, 2409000.0, 2546000.0]}, "weeks": [{"week_start": "2026-10-26", "p_shortfall": 0.0, "expected_shortfall_inr": 11}, {"week_start": "2026-11-02", "p_shortfall": 0.14, "expected_shortfall_inr": 15398}, {"week_start": "2026-11-09", "p_shortfall": 0.51, "expected_shortfall_inr": 107391}, {"week_start": "2026-11-16", "p_shortfall": 0.02, "expected_shortfall_inr": 1241}, {"week_start": "2026-11-23", "p_shortfall": 0.0, "expected_shortfall_inr": 0}, {"week_start": "2026-11-30", "p_shortfall": 0.0, "expected_shortfall_inr": 0}, {"week_start": "2026-12-07", "p_shortfall": 0.0, "expected_shortfall_inr": 0}, {"week_start": "2026-12-14", "p_shortfall": 0.01, "expected_shortfall_inr": 1902}, {"week_start": "2026-12-21", "p_shortfall": 0.0, "expected_shortfall_inr": 0}, {"week_start": "2026-12-28", "p_shortfall": 0.02, "expected_shortfall_inr": 5100}, {"week_start": "2027-01-04", "p_shortfall": 0.0, "expected_shortfall_inr": 0}, {"week_start": "2027-01-11", "p_shortfall": 0.0, "expected_shortfall_inr": 48}, {"week_start": "2027-01-18", "p_shortfall": 0.0, "expected_shortfall_inr": 0}], "baseP": 0.034, "nshort": 536, "order": {"party": "New buyer", "amount_inr": 1200000, "terms_days": 90, "max_safe_terms_days": 0, "min_advance_pct": 30, "margin_inr": 108000}, "kt": [{"buyer": "Buyer A", "max_delay_days": 2}, {"buyer": "Buyer B", "max_delay_days": 11}, {"buyer": "CPSE", "max_delay_days": 3}], "bridge": {"week_start": "2026-11-09", "start_inr": 955011, "items": [{"label": "Receipts: CPSE", "amount_inr": 184742}, {"label": "Receipts: Buyer A", "amount_inr": 812103}, {"label": "Receipts: Buyer B", "amount_inr": 623838}, {"label": "Receipts: Small customers", "amount_inr": 246466}, {"label": "Bar stock (supplier)", "amount_inr": -998000}, {"label": "Rent", "amount_inr": -60000}, {"label": "Bar stock for new order", "amount_inr": -540000}, {"label": "Diwali bonus", "amount_inr": -280000}, {"label": "Machine EMI", "amount_inr": -120000}, {"label": "Wages", "amount_inr": -340000}, {"label": "Power", "amount_inr": -170000}, {"label": "Change in drawing power", "amount_inr": -222067}], "end_inr": 92093}, "obl": [{"date": "2026-10-31", "label": "Bar stock (supplier)", "amount_inr": 499000}, {"date": "2026-11-01", "label": "Rent", "amount_inr": 60000}, {"date": "2026-11-01", "label": "Bar stock for new order", "amount_inr": 540000}, {"date": "2026-11-05", "label": "Diwali bonus", "amount_inr": 280000}, {"date": "2026-11-05", "label": "Machine EMI", "amount_inr": 120000}, {"date": "2026-11-07", "label": "Wages", "amount_inr": 340000}, {"date": "2026-11-10", "label": "Power", "amount_inr": 170000}, {"date": "2026-11-14", "label": "Bar stock (supplier)", "amount_inr": 499000}, {"date": "2026-11-20", "label": "GST", "amount_inr": 186000}, {"date": "2026-12-01", "label": "Bar stock (supplier)", "amount_inr": 572000}, {"date": "2026-12-01", "label": "Rent", "amount_inr": 60000}, {"date": "2026-12-05", "label": "Machine EMI", "amount_inr": 120000}], "samples": [[1318000.0, 1356000.0, 1434000.0, 1519000.0, 1519000.0, 1020000.0, 420000.0, 566000.0, 566000.0, 594000.0, 229000.0, 229000.0, -95000.0, -95000.0, 113000.0, -57000.0, -57000.0, -57000.0, 139000.0, -360000.0, -360000.0, 224000.0, 224000.0, 272000.0, 272000.0, 103000.0, 103000.0, 171000.0, 353000.0, 353000.0, 353000.0, 353000.0, 353000.0, 684000.0, 893000.0, 1515000.0, 925000.0, 925000.0, 963000.0, 1134000.0, 1014000.0, 1039000.0, 467000.0, 467000.0, 467000.0, 334000.0, 355000.0, 355000.0, 355000.0, 479000.0, -243000.0, -243000.0, -222000.0, -222000.0, -222000.0, -527000.0, -31000.0, -31000.0, -31000.0, -31000.0, -31000.0, -31000.0, -31000.0, -31000.0, -31000.0, -31000.0, -628000.0, -273000.0, 54000.0, 752000.0, 930000.0, 828000.0, 891000.0, 847000.0, 905000.0, 926000.0, 776000.0, 795000.0, 795000.0, 795000.0, 524000.0, 524000.0, 535000.0, 871000.0, 1306000.0, 1550000.0, 1328000.0, 1352000.0, 1376000.0, 1376000.0], [1088000.0, 1642000.0, 1783000.0, 2010000.0, 2052000.0, 1569000.0, 998000.0, 644000.0, 644000.0, 644000.0, 244000.0, 244000.0, -96000.0, -96000.0, 169000.0, 13000.0, 13000.0, 13000.0, 13000.0, -486000.0, -103000.0, 161000.0, 364000.0, 364000.0, 581000.0, 413000.0, 681000.0, 681000.0, 834000.0, 1043000.0, 1043000.0, 1043000.0, 1061000.0, 1092000.0, 1092000.0, 1993000.0, 1378000.0, 1378000.0, 1378000.0, 1378000.0, 1258000.0, 1297000.0, 1351000.0, 1351000.0, 1522000.0, 1372000.0, 1402000.0, 1402000.0, 1402000.0, 1306000.0, 630000.0, 647000.0, 647000.0, 647000.0, 846000.0, 514000.0, 746000.0, 746000.0, 968000.0, 968000.0, 968000.0, 968000.0, 1277000.0, 1351000.0, 1351000.0, 1351000.0, 788000.0, 930000.0, 930000.0, 1681000.0, 1614000.0, 1810000.0, 1933000.0, 1878000.0, 1899000.0, 1899000.0, 1749000.0, 1816000.0, 2113000.0, 2336000.0, 1763000.0, 1763000.0, 2015000.0, 2015000.0, 2029000.0, 2029000.0, 2158000.0, 2302000.0, 2302000.0, 2450000.0], [1230000.0, 1457000.0, 1457000.0, 1457000.0, 1485000.0, 986000.0, 386000.0, 493000.0, 528000.0, 528000.0, 128000.0, 128000.0, -212000.0, -212000.0, 25000.0, -58000.0, -58000.0, -58000.0, -58000.0, -383000.0, 208000.0, 194000.0, 470000.0, 498000.0, 516000.0, 345000.0, 359000.0, 563000.0, 483000.0, 483000.0, 707000.0, 898000.0, 898000.0, 898000.0, 969000.0, 1847000.0, 1215000.0, 1385000.0, 1415000.0, 1446000.0, 1624000.0, 1639000.0, 1351000.0, 1368000.0, 1368000.0, 1245000.0, 1287000.0, 1557000.0, 1769000.0, 1745000.0, 1023000.0, 1062000.0, 1077000.0, 1105000.0, 1105000.0, 976000.0, 1404000.0, 1404000.0, 1404000.0, 1404000.0, 1404000.0, 1404000.0, 1404000.0, 1457000.0, 1457000.0, 1457000.0, 860000.0, 1216000.0, 1216000.0, 1216000.0, 1252000.0, 1170000.0, 1170000.0, 1106000.0, 1284000.0, 1305000.0, 1155000.0, 1155000.0, 1439000.0, 1464000.0, 1088000.0, 1088000.0, 1331000.0, 1353000.0, 1353000.0, 1374000.0, 1170000.0, 1202000.0, 1789000.0, 1789000.0], [1112000.0, 1128000.0, 1355000.0, 1420000.0, 1476000.0, 1355000.0, 755000.0, 572000.0, 572000.0, 572000.0, 192000.0, 207000.0, -133000.0, -133000.0, 96000.0, -74000.0, -46000.0, -46000.0, 166000.0, -333000.0, -333000.0, 146000.0, 403000.0, 786000.0, 786000.0, 630000.0, 630000.0, 630000.0, 554000.0, 607000.0, 631000.0, 853000.0, 870000.0, 885000.0, 903000.0, 1865000.0, 1233000.0, 1272000.0, 1717000.0, 1758000.0, 1638000.0, 1638000.0, 1361000.0, 1361000.0, 1361000.0, 1228000.0, 1228000.0, 1274000.0, 1274000.0, 1552000.0, 830000.0, 850000.0, 850000.0, 878000.0, 878000.0, 546000.0, 664000.0, 664000.0, 664000.0, 664000.0, 664000.0, 664000.0, 664000.0, 664000.0, 664000.0, 664000.0, 67000.0, 482000.0, 1243000.0, 1528000.0, 1792000.0, 1899000.0, 2476000.0, 2157000.0, 2157000.0, 2157000.0, 2029000.0, 2049000.0, 2173000.0, 2173000.0, 1576000.0, 1576000.0, 1576000.0, 1631000.0, 1729000.0, 1751000.0, 1529000.0, 1529000.0, 1752000.0, 1787000.0], [1237000.0, 1237000.0, 1464000.0, 1864000.0, 2073000.0, 1574000.0, 974000.0, 726000.0, 726000.0, 726000.0, 326000.0, 326000.0, 14000.0, 289000.0, 363000.0, 193000.0, 221000.0, 221000.0, 221000.0, -278000.0, -263000.0, 217000.0, 217000.0, 231000.0, 231000.0, 269000.0, 331000.0, 540000.0, 755000.0, 755000.0, 773000.0, 773000.0, 773000.0, 773000.0, 773000.0, 1886000.0, 1507000.0, 1524000.0, 1524000.0, 2024000.0, 1928000.0, 1960000.0, 1624000.0, 1677000.0, 1677000.0, 1527000.0, 1555000.0, 1555000.0, 1555000.0, 1706000.0, 1260000.0, 1260000.0, 1260000.0, 1299000.0, 1330000.0, 998000.0, 1379000.0, 1379000.0, 1625000.0, 1646000.0, 1646000.0, 1922000.0, 2397000.0, 2131000.0, 2402000.0, 2622000.0, 2025000.0, 1965000.0, 2224000.0, 2224000.0, 2091000.0, 1971000.0, 2256000.0, 1916000.0, 1989000.0, 2009000.0, 1859000.0, 2446000.0, 2615000.0, 2839000.0, 2242000.0, 2260000.0, 2260000.0, 2260000.0, 2268000.0, 2268000.0, 2109000.0, 2373000.0, 2430000.0, 2577000.0], [1176000.0, 1582000.0, 1582000.0, 1809000.0, 1837000.0, 1367000.0, 809000.0, 632000.0, 851000.0, 1233000.0, 848000.0, 848000.0, 508000.0, 508000.0, 397000.0, 227000.0, 255000.0, 255000.0, 255000.0, -244000.0, -244000.0, 245000.0, 245000.0, 245000.0, 521000.0, 335000.0, 524000.0, 549000.0, 699000.0, 699000.0, 699000.0, 729000.0, 932000.0, 1155000.0, 1155000.0, 2138000.0, 1506000.0, 1538000.0, 1538000.0, 1538000.0, 1418000.0, 1708000.0, 1489000.0, 1489000.0, 1489000.0, 1592000.0, 1859000.0, 1859000.0, 1938000.0, 1889000.0, 1167000.0, 1167000.0, 1345000.0, 1345000.0, 1556000.0, 1224000.0, 1578000.0, 1578000.0, 1578000.0, 1578000.0, 1578000.0, 1578000.0, 1578000.0, 1598000.0, 1598000.0, 1598000.0, 1001000.0, 1065000.0, 1384000.0, 1708000.0, 1966000.0, 1874000.0, 1927000.0, 1884000.0, 2257000.0, 2257000.0, 2138000.0, 2478000.0, 2478000.0, 2499000.0, 1921000.0, 1921000.0, 1945000.0, 1945000.0, 2055000.0, 2249000.0, 2073000.0, 2318000.0, 2318000.0, 2806000.0], [1088000.0, 1279000.0, 1279000.0, 1671000.0, 1671000.0, 1172000.0, 572000.0, 642000.0, 907000.0, 907000.0, 535000.0, 550000.0, 226000.0, 226000.0, 356000.0, 256000.0, 284000.0, 284000.0, 284000.0, -215000.0, -200000.0, 237000.0, 237000.0, 433000.0, 433000.0, 576000.0, 576000.0, 594000.0, 831000.0, 877000.0, 877000.0, 921000.0, 921000.0, 1091000.0, 1091000.0, 1885000.0, 1253000.0, 1427000.0, 1444000.0, 1474000.0, 1354000.0, 1354000.0, 1234000.0, 1252000.0, 1541000.0, 1603000.0, 1644000.0, 1644000.0, 1896000.0, 1717000.0, 995000.0, 1291000.0, 1291000.0, 1542000.0, 1580000.0, 1470000.0, 1705000.0, 1705000.0, 1705000.0, 2206000.0, 2221000.0, 2221000.0, 2238000.0, 2346000.0, 2346000.0, 2502000.0, 2442000.0, 2382000.0, 2382000.0, 2382000.0, 2162000.0, 2042000.0, 2042000.0, 1751000.0, 1835000.0, 1835000.0, 1685000.0, 2214000.0, 2281000.0, 2281000.0, 1684000.0, 1684000.0, 2032000.0, 2032000.0, 2243000.0, 2243000.0, 2336000.0, 2358000.0, 2381000.0, 2381000.0], [1088000.0, 1116000.0, 1480000.0, 1752000.0, 1980000.0, 1525000.0, 925000.0, 750000.0, 750000.0, 1086000.0, 686000.0, 686000.0, 537000.0, 537000.0, 466000.0, 316000.0, 316000.0, 316000.0, 316000.0, -183000.0, -183000.0, 311000.0, 311000.0, 538000.0, 572000.0, 609000.0, 633000.0, 633000.0, 691000.0, 1089000.0, 1119000.0, 1119000.0, 1135000.0, 1189000.0, 1413000.0, 1924000.0, 1292000.0, 1310000.0, 1310000.0, 1351000.0, 1262000.0, 1465000.0, 1318000.0, 1318000.0, 1318000.0, 1235000.0, 1235000.0, 1235000.0, 1534000.0, 1627000.0, 905000.0, 905000.0, 905000.0, 905000.0, 1126000.0, 1023000.0, 1259000.0, 1434000.0, 1454000.0, 1454000.0, 1454000.0, 1486000.0, 1486000.0, 1486000.0, 1486000.0, 1486000.0, 941000.0, 881000.0, 899000.0, 1170000.0, 1373000.0, 1274000.0, 1337000.0, 1315000.0, 1339000.0, 1367000.0, 1361000.0, 1386000.0, 1647000.0, 1704000.0, 1130000.0, 1130000.0, 1130000.0, 1150000.0, 1150000.0, 1426000.0, 1204000.0, 1204000.0, 1242000.0, 1242000.0], [1162000.0, 1526000.0, 1526000.0, 1820000.0, 2047000.0, 1548000.0, 948000.0, 840000.0, 840000.0, 840000.0, 468000.0, 667000.0, 327000.0, 327000.0, 439000.0, 269000.0, 311000.0, 311000.0, 311000.0, -159000.0, -159000.0, 312000.0, 345000.0, 548000.0, 722000.0, 536000.0, 788000.0, 788000.0, 947000.0, 968000.0, 968000.0, 1377000.0, 1377000.0, 1377000.0, 1377000.0, 2173000.0, 1832000.0, 1889000.0, 1914000.0, 1914000.0, 2006000.0, 2006000.0, 1615000.0, 1706000.0, 1706000.0, 1575000.0, 1604000.0, 1629000.0, 1629000.0, 1845000.0, 1331000.0, 1359000.0, 1671000.0, 1671000.0, 1892000.0, 1560000.0, 1790000.0, 1790000.0, 1790000.0, 1790000.0, 1790000.0, 1790000.0, 1790000.0, 2268000.0, 2289000.0, 2802000.0, 2205000.0, 2145000.0, 2145000.0, 2163000.0, 2030000.0, 2145000.0, 2165000.0, 1949000.0, 2130000.0, 2204000.0, 2054000.0, 2396000.0, 2481000.0, 2481000.0, 1915000.0, 1915000.0, 1936000.0, 1936000.0, 1936000.0, 2180000.0, 2206000.0, 2241000.0, 2241000.0, 3362000.0], [1236000.0, 1236000.0, 1298000.0, 1333000.0, 1561000.0, 1062000.0, 462000.0, 526000.0, 526000.0, 526000.0, 144000.0, 144000.0, -140000.0, -140000.0, 223000.0, 96000.0, 96000.0, 96000.0, 117000.0, 0.0, 0.0, 234000.0, 262000.0, 262000.0, 262000.0, 76000.0, 92000.0, 589000.0, 694000.0, 694000.0, 694000.0, 694000.0, 718000.0, 718000.0, 718000.0, 1768000.0, 1136000.0, 1345000.0, 1557000.0, 1610000.0, 1523000.0, 1554000.0, 1067000.0, 1067000.0, 1237000.0, 1126000.0, 1167000.0, 1167000.0, 1167000.0, 1336000.0, 642000.0, 642000.0, 642000.0, 863000.0, 888000.0, 831000.0, 1014000.0, 1014000.0, 1014000.0, 1014000.0, 1014000.0, 1014000.0, 1014000.0, 1014000.0, 1014000.0, 1014000.0, 417000.0, 410000.0, 410000.0, 998000.0, 1030000.0, 1389000.0, 1440000.0, 1382000.0, 1382000.0, 1382000.0, 1280000.0, 1280000.0, 1280000.0, 1565000.0, 968000.0, 1052000.0, 1052000.0, 1144000.0, 1179000.0, 1179000.0, 981000.0, 1003000.0, 1003000.0, 1027000.0], [1088000.0, 1088000.0, 1499000.0, 1535000.0, 1953000.0, 1650000.0, 1050000.0, 792000.0, 792000.0, 792000.0, 392000.0, 392000.0, 52000.0, 66000.0, 308000.0, 138000.0, 155000.0, 155000.0, 382000.0, -117000.0, 294000.0, 480000.0, 500000.0, 500000.0, 500000.0, 344000.0, 619000.0, 644000.0, 798000.0, 798000.0, 798000.0, 1021000.0, 1051000.0, 1051000.0, 1221000.0, 1915000.0, 1508000.0, 1550000.0, 1550000.0, 1566000.0, 1446000.0, 1446000.0, 1245000.0, 1245000.0, 1547000.0, 1397000.0, 1797000.0, 1797000.0, 1797000.0, 1684000.0, 993000.0, 993000.0, 993000.0, 1046000.0, 1046000.0, 936000.0, 1262000.0, 1262000.0, 1262000.0, 1283000.0, 1283000.0, 1533000.0, 1818000.0, 1818000.0, 1845000.0, 2116000.0, 1519000.0, 1654000.0, 1857000.0, 2142000.0, 1842000.0, 1722000.0, 1743000.0, 1697000.0, 1697000.0, 1697000.0, 1590000.0, 2213000.0, 2213000.0, 2274000.0, 1698000.0, 1698000.0, 1729000.0, 1729000.0, 1729000.0, 1729000.0, 1532000.0, 1556000.0, 1994000.0, 2288000.0], [1088000.0, 1669000.0, 2260000.0, 2451000.0, 2451000.0, 2228000.0, 1831000.0, 969000.0, 1005000.0, 1067000.0, 667000.0, 695000.0, 355000.0, 390000.0, 542000.0, 372000.0, 372000.0, 387000.0, 387000.0, -98000.0, -77000.0, 486000.0, 486000.0, 486000.0, 486000.0, 300000.0, 300000.0, 300000.0, 775000.0, 804000.0, 804000.0, 862000.0, 1049000.0, 1049000.0, 1077000.0, 2041000.0, 1587000.0, 1761000.0, 1761000.0, 2035000.0, 2160000.0, 2208000.0, 1719000.0, 1719000.0, 1719000.0, 1569000.0, 1569000.0, 1594000.0, 1594000.0, 1943000.0, 1221000.0, 1703000.0, 1719000.0, 1719000.0, 1767000.0, 1435000.0, 1908000.0, 1908000.0, 1925000.0, 1964000.0, 1964000.0, 2167000.0, 2438000.0, 2486000.0, 2486000.0, 2486000.0, 2165000.0, 2105000.0, 2105000.0, 2139000.0, 2153000.0, 2033000.0, 2033000.0, 1693000.0, 1693000.0, 1693000.0, 1606000.0, 2121000.0, 2121000.0, 2121000.0, 1562000.0, 1587000.0, 1893000.0, 1893000.0, 2316000.0, 2560000.0, 2365000.0, 2397000.0, 2397000.0, 2421000.0]], "km": {"Buyer A": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.9782608695652174, 0.9673913043478262, 0.8665042024772498, 0.7089579838450226, 0.5289051625510486, 0.3811315477061587, 0.2425382576311919, 0.19634049427286965, 0.12704384923538625, 0.1039449675562251, 0.08084608587706398, 0.05774720419790284, 0.05774720419790284, 0.03464832251874171, 0.023098881679161142, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571, 0.011549440839580571], "Buyer B": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.9855072463768116, 0.8840579710144928, 0.6956521739130435, 0.4057971014492754, 0.16701173222912355, 0.05060961582700714, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "CPSE": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.9574468085106383, 0.9351806036615536, 0.8683819891142998, 0.8238495794161305, 0.6679861454725383, 0.46759030183077693, 0.3750097658793198, 0.3046954347769474, 0.2812573244094899, 0.2812573244094899, 0.2343811036745749, 0.18750488293965994, 0.14062866220474496, 0.11719055183728747, 0.07031433110237248, 0.07031433110237248, 0.07031433110237248, 0.07031433110237248, 0.07031433110237248, 0.04687622073491499, 0.04687622073491499, 0.04687622073491499, 0.04687622073491499, 0.023438110367457497, 0.023438110367457497, 0.023438110367457497], "Small customers": [1.0, 1.0, 0.96972232768329, 0.8141719265878709, 0.6016355244477841, 0.3270429004690519, 0.19368035921645974, 0.10308793313134147, 0.06872528875422765, 0.04685815142333703, 0.024991014092446417, 0.014280579481397954, 0.0035701448703494894, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "ktc": [{"buyer": "Buyer A", "delays": [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60], "p_shortfall": [0.536, 0.634, 0.769, 0.843, 0.978, 0.979, 0.98, 0.98, 0.983, 0.987, 0.995, 0.998, 1.0]}, {"buyer": "Buyer B", "delays": [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60], "p_shortfall": [0.536, 0.562, 0.55, 0.61, 0.882, 0.884, 0.885, 0.886, 0.886, 0.888, 0.897, 0.916, 0.924]}, {"buyer": "CPSE", "delays": [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60], "p_shortfall": [0.536, 0.599, 0.621, 0.721, 0.781, 0.781, 0.783, 0.784, 0.785, 0.785, 0.786, 0.789, 0.789]}]};
+const L=x=>x/1e5, pct=x=>Math.round(x*100)+'%', C={blue:'#6fa8e8',ok:'#4fc58a',watch:'#f0b04a',ng:'#ef6f63',vio:'#b49cf0',mute:'#8fa5ba',grid:'rgba(255,255,255,.08)'};
+Chart.defaults.color=C.mute;Chart.defaults.font.family='Barlow,system-ui,sans-serif';Chart.defaults.borderColor=C.grid;Chart.defaults.animation=false;
+Chart.defaults.maintainAspectRatio=false;Chart.defaults.plugins.legend.labels.boxWidth=14;
+const sc=(t,extra={})=>({title:{display:!!t,text:t,color:C.mute},grid:{color:C.grid},...extra});
+const mk=(id,cfg)=>new Chart(document.getElementById(id),cfg);
+const T=(id,v)=>document.getElementById(id).textContent=v;
+
+T('sBase',(D.baseP*100).toFixed(1)+'%');T('sOrder',pct(D.nshort/1000));T('sAdv',D.order.min_advance_pct+'%');
+T('kA',D.kt[0].max_delay_days+' days');T('kB',D.kt[1].max_delay_days+' days');T('kC',D.kt[2].max_delay_days+' days');
+T('oT',D.order.max_safe_terms_days);T('oA',D.order.min_advance_pct+'%');
+
+const wk=D.weeks.map(w=>new Date(w.week_start).toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
+const live={};
+const builders={
+ 2(){mk('cWeeks',{type:'bar',data:{labels:wk,datasets:[{label:'Chance of shortfall',data:D.weeks.map(w=>w.p_shortfall*100),backgroundColor:D.weeks.map(w=>w.p_shortfall>.25?C.ng:w.p_shortfall>.05?C.watch:C.ok),borderRadius:3},
+   {type:'line',label:'5% target',data:wk.map(()=>5),borderColor:'#fff',borderDash:[6,4],pointRadius:0,borderWidth:1.5}]},
+   options:{scales:{y:{...sc('% of 1,000 paths with a shortfall'),max:100},x:{grid:{display:false},title:{display:true,text:'week starting',color:C.mute}}},plugins:{legend:{labels:{filter:i=>i.text==='5% target'}}}}})},
+ 4(){const x=[...Array(37).keys()].map(i=>i*5);const col={'Buyer A':C.blue,'Buyer B':C.ok,'CPSE':C.ng,'Small customers':C.watch};
+   mk('cKM',{type:'line',data:{labels:x,datasets:Object.keys(D.km).map(b=>({label:b,data:D.km[b].map(v=>v*100),borderColor:col[b]||C.vio,borderWidth:2.5,pointRadius:0,stepped:true}))},
+   options:{scales:{x:{...sc('days since invoice'),ticks:{maxTicksLimit:10}},y:{...sc('% still unpaid'),min:0,max:100}}}})},
+ 5(){const dts=D.fan.dates.map(d=>new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
+   const ds=D.samples.slice(0,10).map(s=>({label:'path',data:s.map(L),borderColor:'rgba(255,255,255,.14)',borderWidth:1,pointRadius:0,stepped:true,order:5}));
+   ds.push({label:'P10',data:D.fan.p10.map(L),borderColor:'transparent',backgroundColor:'rgba(111,168,232,.28)',pointRadius:0,fill:'+1',stepped:true,order:3});
+   ds.push({label:'P90',data:D.fan.p90.map(L),borderColor:'transparent',pointRadius:0,stepped:true,order:3});
+   ds.push({label:'Median',data:D.fan.p50.map(L),borderColor:C.blue,borderWidth:3,pointRadius:0,stepped:true,order:1});
+   ds.push({label:'₹0',data:dts.map(()=>0),borderColor:C.watch,borderDash:[6,4],borderWidth:1.5,pointRadius:0,order:2});
+   mk('cFan',{type:'line',data:{labels:dts,datasets:ds},options:{scales:{x:{grid:{display:false},ticks:{maxTicksLimit:9}},y:{...sc('₹ lakh')}},plugins:{legend:{labels:{filter:i=>['Median','₹0'].includes(i.text)}}}}})},
+ 6(){const it=D.bridge.items;let run=D.bridge.start_inr;const lab=['Start'],f=[[0,run]],cl=[C.blue];
+   it.forEach(i=>{lab.push(i.label.replace('Receipts: ','+ ').replace('Change in drawing power','Drawing power'));const a=run,b=run+i.amount_inr;f.push([Math.min(a,b),Math.max(a,b)]);cl.push(i.amount_inr>=0?C.ok:(i.label.includes('Drawing')?C.vio:C.ng));run=b});
+   lab.push('End');f.push([0,run]);cl.push(C.blue);
+   mk('cBridge',{type:'bar',data:{labels:lab,datasets:[{data:f.map(p=>[L(p[0]),L(p[1])]),backgroundColor:cl,borderRadius:2}]},options:{indexAxis:'y',scales:{x:{...sc('₹ lakh')},y:{grid:{display:false},ticks:{font:{size:11}}}},plugins:{legend:{display:false}}}})},
+ 7(){const col={'Buyer A':C.blue,'Buyer B':C.ok,'CPSE':C.ng};
+   const ds=D.ktc.map(k=>({label:k.buyer,data:k.p_shortfall.map(v=>v*100),borderColor:col[k.buyer],borderWidth:2.5,pointRadius:3}));
+   ds.push({label:'5% target',data:D.ktc[0].delays.map(()=>5),borderColor:'#fff',borderDash:[6,4],borderWidth:1.5,pointRadius:0});
+   mk('cKT',{type:'line',data:{labels:D.ktc[0].delays,datasets:ds},options:{scales:{x:{...sc('extra days this buyer pays late')},y:{...sc('% chance of a shortfall'),min:0,max:100}}}})}
+};
+// ponytail: charts built on first view of a slide so hidden canvases never measure 0x0
+const deck=document.getElementById('deck'),S=[...document.querySelectorAll('.slide')];let i=0;const built={};
+document.getElementById('tot').textContent=S.length;
+function fit(){}
+function show(n){i=Math.max(0,Math.min(S.length-1,n));S.forEach((s,k)=>s.classList.toggle('active',k===i));
+ document.getElementById('cur').textContent=i+1;document.getElementById('pb').style.width=(i+1)/S.length*100+'%';
+ const k=i+1;if(builders[k]&&!built[k]){built[k]=1;requestAnimationFrame(()=>builders[k]())}}
+addEventListener('keydown',e=>{if(['ArrowRight',' ','PageDown'].includes(e.key)){e.preventDefault();show(i+1)}if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();show(i-1)}});
+addEventListener('click',e=>{if(!e.target.closest('a'))show(i+1)});
+show(+(location.hash.slice(1)||1)-1);
+</script>
+</body>
+</html>
