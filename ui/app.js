@@ -741,7 +741,7 @@ async function explain(question, lang) {
     if (!res.ok) return (box.hidden = true);
     out.textContent = body.text;
     $("#explain-src").textContent = body.source === "llm"
-      ? "Written by an AI model. It can't write numbers itself; every number is filled in from the engine's result."
+      ? "Written by an AI model from the engine's numbers. A check removes any sentence with a number the engine didn't produce."
       : "Standard sentence: the AI summary was unavailable or didn't pass the number check.";
   } catch { if (id === explainRun) box.hidden = true; }
 }

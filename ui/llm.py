@@ -16,9 +16,9 @@ TYPES = ["status", "new_order", "delay_payment", "expense_shock", "sales_drop", 
          "schedule_change", "payment_received"]
 LANGS = {"en": "English", "mr": "Marathi (Devanagari)", "hi": "Hindi (Devanagari)"}
 try:
-    from engine.ledger import TODAY
+    from engine.ledger import GST_RATE, TODAY
 except ImportError:
-    TODAY = date.today()
+    GST_RATE, TODAY = 0.18, date.today()
 
 
 def _key():
@@ -106,87 +106,102 @@ def _inr(n):
     return f"₹{a:,.0f}"
 
 
+_slug = lambda name: re.sub(r"\W+", "_", name.lower()).strip("_")
+
+
 def facts(r, lang):
-    """Formatted numbers the LLM may cite by name. All values come straight from the engine result."""
+    """The numbers the LLM may quote, already formatted, scoped to the question so it can't mix them up.
+    Names say what each number means. Values come from the engine result; the one sum (advance in rupees)
+    is done here so the LLM never has to calculate."""
     pc = lambda p: f"{round(p * 100)}%"
     dt = lambda iso: f"{date.fromisoformat(iso).day} {MONTHS[lang][date.fromisoformat(iso).month - 1]}"
-    w, t = r["worst_week"], r["today"]
-    f = {"worst_week": dt(w["week_start"]), "worst_week_risk": pc(w["p_shortfall"]),
-         "worst_week_payments": w["obligation"] or "-", "risk_limit": pc(r["risk_target"]),
-         "bank": _inr(t["bank_inr"]), "overdraft_headroom": _inr(t["headroom_inr"]),
-         "owed_to_you": _inr(t["receivable_inr"]), "owed_over_45_days": _inr(t["overdue_45_inr"])}
+    d = lambda n: f"{n} {DAYS[lang]}"
+    s, w, t = r["scenario"], r["worst_week"], r["today"]
+    f = {"riskiest_week_starts": dt(w["week_start"]),
+         "chance_of_running_short_in_riskiest_week": pc(w["p_shortfall"]),
+         "acceptable_risk_limit": pc(r["risk_target"]),
+         "bills_you_must_pay_in_riskiest_week": w["obligation"] or "-",
+         "overdraft_you_can_still_use": _inr(t["headroom_inr"])}
     if r.get("baseline"):
-        f["worst_week_risk_before"] = pc(r["baseline"]["worst_week"]["p_shortfall"])
-    s = r["scenario"]
-    for k in r.get("kab_tak") or []:  # only buyers the question is about, so the LLM can't mix them up
+        f["chance_of_running_short_before_this_change"] = pc(r["baseline"]["worst_week"]["p_shortfall"])
+    if s["type"] == "status":
+        f.update(bank_balance=_inr(t["bank_inr"]), money_buyers_owe_you=_inr(t["receivable_inr"]),
+                 money_owed_for_over_45_days=_inr(t["overdue_45_inr"]))
+    for k in r.get("kab_tak") or []:
         if s["type"] == "status" or s.get("party") == k["buyer"]:
-            f[k["buyer"].lower().replace(" ", "_") + "_can_pay_late_by"] = f"{k['max_delay_days']} {DAYS[lang]}"
+            f[f"days_{_slug(k['buyer'])}_can_pay_late_before_you_run_short"] = d(k["max_delay_days"])
+    if s["type"] == "delay_payment":
+        f[f"days_late_asked_about_for_{_slug(s['party'])}"] = d(s["days"])
+    if s["type"] == "expense_shock":
+        f.update(expense_amount=_inr(s["amount_inr"]), expense_date=dt(s["date"]))
     if o := r.get("order"):
-        f.update(order_amount=_inr(o["amount_inr"]), order_terms=f"{o['terms_days']} {DAYS[lang]}",
-                 order_safe_terms=f"{o['max_safe_terms_days']} {DAYS[lang]}", order_min_advance=f"{o['min_advance_pct']}%",
-                 order_margin=_inr(o["margin_inr"]))
-    if s.get("amount_inr"):
-        f["asked_amount"] = _inr(s["amount_inr"])
-    if s.get("days") is not None:
-        f["asked_days"] = f"{s['days']} {DAYS[lang]}"
+        f.update(order_value=_inr(o["amount_inr"]), payment_terms_asked=d(o["terms_days"]),
+                 longest_safe_payment_terms=d(o["max_safe_terms_days"]),
+                 smallest_safe_advance_pct=f"{o['min_advance_pct']}%",
+                 smallest_safe_advance_rupees=_inr(o["amount_inr"] * (1 + GST_RATE) * o["min_advance_pct"] / 100),
+                 profit_margin_on_order=_inr(o["margin_inr"]))
     return f
 
 
-# ponytail: catches digits and scale/percent words, not every spelled-out number (e.g. "thirty", "तीस").
-# Prompt forbids those too; extend the word list if the golden set shows leaks.
-NUMBERISH = re.compile(r"[0-9०-९]|%|₹|\b(lakh|lac|crore|thousand|hundred|percent)\b|लाख|कोटी|करोड|हजार|हज़ार|शंभर|सौ|टक्के|प्रतिशत",
-                       re.I)
-
 EXPLAIN_PROMPT = """You explain a cash-flow forecast to a small-factory owner who is not an accountant.
 Write {lang}, 3 or 4 short sentences, plain everyday words. Answer the owner's question first, consistent with "verdict", then the most important risk, then what they could do (only what the facts support).
-You must NOT write any number, digit, percentage, amount or date yourself. Refer to numbers only by writing a placeholder name from the facts in curly braces, e.g. {{worst_week_risk}}. Use only the placeholder names listed in "facts" (that list is complete; never make one up). If something you want to mention has no placeholder, say it in words ("that date", "the wages") without the number. This includes numbers from the owner's own question: write {{asked_amount}} or {{asked_days}}, never the number itself. Placeholders already include their unit (days, %, ₹), so don't repeat the unit.
-Facts: worst_week = start of the riskiest week; worst_week_risk = chance of not being able to make a payment that week; <buyer>_can_pay_late_by = how many extra days that buyer can be late before the owner runs short; order_safe_terms = longest payment terms that stay safe; order_min_advance = smallest advance that makes the order safe; overdraft_headroom = overdraft still available.
-Never say "guaranteed". Don't use jargon such as "P(shortfall)", "Monte Carlo" or "drawing power"; say "the overdraft you can still use"."""
+Each fact's name says exactly what it means; don't use a number for anything else. Bills are money going out, never coming in.
+NUMBERS, strict rules:
+- Every number you write must be copied from the values in "facts" (Devanagari digits are fine), or from the owner's question.
+- Never calculate anything: no sums, differences, products, percentages of amounts or averages.
+- Never convert units (no days to weeks or months, no lakh to million) and never round.
+- Don't write numbers as words (e.g. "thirty", "तीस").
+- If a number you'd like to mention isn't in the facts, describe it in words without a number.
+- Never write a fact's name itself; write what it means.
+Never say "guaranteed". No jargon ("P(shortfall)", "Monte Carlo", "drawing power", "headroom")."""
+
+_DEV = str.maketrans("०१२३४५६७८९", "0123456789")
+_NUM = re.compile(r"\d+(?:[.,]\d+)*")
 
 
-def _safe(text, f):
-    """Keep the sentences that cite only known placeholders and write no number of their own.
+def _nums(text):
+    return {n.replace(",", "") for n in _NUM.findall(text.translate(_DEV))}
+
+
+# ponytail: checks digits only; numbers spelled as words ("thirty") and a real number used for the wrong
+# thing get through. The prompt and the scoped, self-describing fact names are what guard those.
+def _safe(text, f, question=""):
+    """Keep sentences whose every number is a fact value (or from the question) and that leak no fact name.
     None if the first sentence (the answer to the question) fails: dropping it could flip the meaning."""
+    allowed = _nums(" ".join([*f, *f.values(), question]))   # names carry fixed numbers too ("over_45_days")
+    ok = lambda x: _nums(x) <= allowed and not re.search(r"\b[a-z]+_[a-z_]+\b", x)
     parts = [x.strip() for x in re.split(r"(?<=[.?!।])\s+|\n+", text) if x.strip()]
-    kept = [_fill(x, f) for x in parts]
-    return " ".join(k for k in kept if k) if kept and kept[0] else None
-
-
-def _fill(text, f):
-    names = re.findall(r"\{(\w+)\}", text)
-    if any(n not in f for n in names) or NUMBERISH.search(re.sub(r"\{\w+\}", "", text)):
-        return None
-    return re.sub(r"\{(\w+)\}", lambda m: f[m.group(1)], text)
+    return " ".join(x for x in parts if ok(x)) if parts and ok(parts[0]) else None
 
 
 TEMPLATE = {
-    "en": "The hardest week starts {worst_week}: a {worst_week_risk} chance of running short (limit {risk_limit}).",
-    "mr": "सर्वात कठीण आठवडा {worst_week} पासून: पैसे कमी पडण्याची शक्यता {worst_week_risk} (मर्यादा {risk_limit}).",
-    "hi": "सबसे मुश्किल हफ़्ता {worst_week} से: पैसे कम पड़ने की संभावना {worst_week_risk} (सीमा {risk_limit}).",
+    "en": "The riskiest week starts {riskiest_week_starts}: a {chance_of_running_short_in_riskiest_week} chance of running short (limit {acceptable_risk_limit}).",
+    "mr": "सर्वात कठीण आठवडा {riskiest_week_starts} पासून: पैसे कमी पडण्याची शक्यता {chance_of_running_short_in_riskiest_week} (मर्यादा {acceptable_risk_limit}).",
+    "hi": "सबसे मुश्किल हफ़्ता {riskiest_week_starts} से: पैसे कम पड़ने की संभावना {chance_of_running_short_in_riskiest_week} (सीमा {acceptable_risk_limit}).",
 }
 
 
 def explain(question, result, lang="en"):
-    """-> {"text", "source": "llm" | "template"}. Every number in text comes from facts(result)."""
+    """-> {"text", "source": "llm" | "template"}. Every number in text is a value from facts(result) or the question."""
     lang = lang if lang in LANGS else "en"
+    question = question or ""
     f = facts(result, lang)
-    question = re.sub(r"[0-9०-९][0-9०-९,.]*", "…", question or "")  # its numbers are in facts as asked_*
-    msg = json.dumps({"question": question, "scenario": {k: v for k, v in result["scenario"].items() if v is not None},
-                      "facts": f, "verdict": _verdict(result), "order_verdict": _order_verdict(result.get("order"))}, ensure_ascii=False)
+    msg = json.dumps({"question": question, "facts": f, "verdict": _verdict(result),
+                      "order_verdict": _order_verdict(result.get("order"))}, ensure_ascii=False)
     text = None
-    for temp in (0, 0.5):  # one retry, warmer so it isn't the same reply; a leak is rejected, not repaired
+    for temp in (0, 0.5):  # one retry, warmer so it isn't the same reply; a bad sentence is dropped, not repaired
         try:
             raw = _chat([{"role": "system", "content": EXPLAIN_PROMPT.format(lang=LANGS[lang])},
                          {"role": "user", "content": msg}], temperature=temp)
-            text = _safe(raw, f)
+            text = _safe(raw, f, question)
             if not text:
-                print("explain: rejected, first sentence cites an unknown placeholder or writes a number:", raw, file=sys.stderr)
+                print("explain: rejected, first sentence has a number not in the facts:", raw, file=sys.stderr)
         except Exception as e:
             print("explain: LLM call failed:", e, file=sys.stderr)
             break
         if text:
             break
-    return {"text": text, "source": "llm"} if text else {"text": _fill(TEMPLATE[lang], f), "source": "template"}
+    return {"text": text, "source": "llm"} if text else {"text": TEMPLATE[lang].format_map(f), "source": "template"}
 
 
 def _verdict(r):
@@ -204,11 +219,13 @@ def _order_verdict(o):
 
 
 if __name__ == "__main__":
-    f = {"worst_week": "28 Dec", "worst_week_risk": "38%", "risk_limit": "5%"}
-    assert _fill("Week of {worst_week}: {worst_week_risk} risk.", f) == "Week of 28 Dec: 38% risk."
-    for bad in ("Risk is 38% in {worst_week}.", "Ask for a ३० टक्के advance.", "Use {nope}.", "Borrow 2 lakh."):
-        assert _fill(bad, f) is None, bad
-    assert _fill(TEMPLATE["mr"], f)
-    assert _safe("Week of {worst_week} is risky. Pay on the 7th. Risk is {worst_week_risk}.", f) == "Week of 28 Dec is risky. Risk is 38%."
-    assert _safe("Pay on the 7th. Week of {worst_week} is risky.", f) is None
+    f = {"riskiest_week_starts": "28 Dec", "chance_of_running_short_in_riskiest_week": "38%",
+         "acceptable_risk_limit": "5%", "smallest_safe_advance_rupees": "₹4.2 L"}
+    assert _safe("Week of 28 Dec is risky. Ask for ₹४.२ L upfront.", f) == "Week of 28 Dec is risky. Ask for ₹४.२ L upfront."
+    assert _safe("Week of 28 Dec is risky. That is ₹3.6 L. Risk is 38%.", f) == "Week of 28 Dec is risky. Risk is 38%."
+    assert _safe("Risk is 38%. See acceptable_risk_limit.", f) == "Risk is 38%."
+    assert _safe("Pay 12 lakh on the 7th.", f) is None and _safe("Pay 12 lakh on the 7th.", f, "withdraw 12L by the 7th") 
+    assert _safe("Risk 1.5 months. Week of 28 Dec.", f) is None
+    assert "28 Dec" in TEMPLATE["mr"].format_map(f)
+    assert _safe("₹26 L is over 45 days old.", {**f, "money_owed_for_over_45_days": "₹26 L"})
     print("ok")
