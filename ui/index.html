@@ -53,6 +53,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brand { display: flex; align-items: baseline; gap: 10px; }
 .brand h1 { font: 700 26px/1 var(--sans); letter-spacing: -0.01em; }
 .brand span { font: 600 18px/1 var(--deva); opacity: .8; }
+.brand #biz { font: 600 18px/1 var(--sans); opacity: 1; padding-left: 10px; border-left: 1px solid #4f7299; }
 .asked { flex: 1; min-width: 240px; font-size: 15px; color: #c3d4e6; }
 .asked q { color: var(--shell-ink); quotes: "“" "”"; }
 .switch { position: relative; display: flex; border: 1px solid #4f7299; border-radius: var(--r); overflow: hidden; }
@@ -281,7 +282,7 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
 </head>
 <body data-view="owner">
 <header class="bar">
-  <div class="brand"><h1>Kab Tak?</h1><span lang="hi">कब तक?</span></div>
+  <div class="brand"><h1>Kab Tak?</h1><span lang="hi">कब तक?</span><span id="biz" hidden></span></div>
   <p class="asked" id="asked"></p>
   <div class="switch" role="group" aria-label="View">
     <button type="button" data-view="owner" aria-pressed="true">Owner</button>
@@ -289,7 +290,7 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
     <button type="button" data-view="story" aria-pressed="false">Story</button>
   </div>
 </header>
-<p class="notice" role="note"><strong>Computes and compares options, not financial or legal advice. Synthetic data.</strong><span id="meta"></span></p>
+<p class="notice" role="note"><strong>Computes and compares options, not financial or legal advice.<span id="synth"> Synthetic data.</span></strong><span id="meta"></span></p>
 
 <div class="layout">
   <main id="main" aria-live="polite">

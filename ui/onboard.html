@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up Kab Tak?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&family=Mukta:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ground: #e6ecf2;
+  --sheet: #fff;
+  --ink: #0f2233;
+  --ink-2: #4a5d70;
+  --rule: #d3dce5;
+  --rule-strong: #9fb0c1;
+  --shell: #123a63;
+  --shell-ink: #e8f0f8;
+  --blue: #1f5fa8;
+  --band: #c4d8ef;
+  --band-deep: #8fb4de;
+  --ok: #1a7343;
+  --ok-bg: #e3f3ea;
+  --watch: #9a5a00;
+  --watch-bg: #fdf1dc;
+  --ng: #b42318;
+  --ng-bg: #fde8e6;
+  --plan: #eaf2fb;
+  --sans: "Barlow", system-ui, sans-serif;
+  --cond: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+  --deva: "Mukta", "Noto Sans Devanagari", sans-serif;
+  --r: 6px;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 400 16px/1.5 var(--sans); font-variant-numeric: tabular-nums; }
+::selection { background: var(--band-deep); color: var(--ink); }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; line-height: 1.15; text-wrap: balance; }
+button, input, select { font: inherit; color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+.bar { background: var(--shell); color: var(--shell-ink); display: flex; align-items: baseline; gap: 10px; padding: 14px 28px; }
+.bar h1 { font: 700 26px/1 var(--sans); letter-spacing: -0.01em; }
+.bar span { font: 600 18px/1 var(--deva); opacity: .8; }
+.bar a { margin-left: auto; color: #c3d4e6; font-size: 14px; }
+.notice { margin: 0; padding: 9px 28px; background: #fff7e6; border-bottom: 1px solid #ecd6a8; font-size: 14px; color: #5c4210; }
+.notice strong { font-weight: 600; }
+
+main { display: grid; gap: 20px; max-width: 780px; margin: 0 auto; padding: 24px 28px 48px; }
+.sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r); padding: 22px 24px; min-width: 0; }
+.sheet > h2 { font: 700 20px/1.2 var(--sans); margin-bottom: 4px; display: flex; gap: 10px; align-items: baseline; }
+.sheet > h2 b { font: 700 14px/1 var(--cond); letter-spacing: .06em; color: var(--ink-2); }
+.sub { color: var(--ink-2); font-size: 14.5px; margin: 0 0 16px; }
+.muted { color: var(--ink-2); }
+.intro { margin: 0; color: var(--ink-2); max-width: 62ch; }
+
+.field { display: grid; gap: 4px; }
+.field label, .cell > .cl { font-size: 14px; font-weight: 600; }
+.field .hint { font-size: 12.5px; color: var(--ink-2); }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+input, select { width: 100%; padding: 9px 10px; border: 1px solid var(--rule-strong); border-radius: 4px; background: #fff; }
+input:focus, select:focus { border-color: var(--blue); outline: 2px solid var(--band); outline-offset: 0; }
+input:disabled { background: #eef2f6; cursor: not-allowed; }
+input[type=checkbox] { width: 20px; height: 20px; padding: 0; margin-top: 3px; accent-color: var(--shell); flex: none; }
+.run { background: var(--shell); color: #fff; border: 0; border-radius: 4px; padding: 12px 18px; font-weight: 600; cursor: pointer; }
+.run:hover { background: var(--blue); }
+.run:disabled { opacity: .45; cursor: not-allowed; }
+.ghost { background: none; border: 1px solid var(--rule-strong); border-radius: 4px; padding: 9px 14px; font-weight: 600; cursor: pointer; }
+.ghost:hover { border-color: var(--ink); }
+.status { font-size: 13.5px; margin: 12px 0 0; padding: 8px 10px; border-radius: 4px; background: #eef2f6; color: var(--ink-2); }
+.status.err { background: var(--ng-bg); color: var(--ng); }
+
+/* bills: a table on wide screens, stacked cards on a phone */
+.bills { display: grid; gap: 8px; }
+.bill { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 90px auto; gap: 8px; align-items: end; }
+.bill.head { font-size: 13px; font-weight: 600; color: var(--ink-2); border-bottom: 1.5px solid var(--rule-strong); padding-bottom: 6px; align-items: end; }
+.bill:not(.head) .cl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.bill .x { padding: 9px 12px; }
+.bills + .ghost { margin-top: 12px; }
+
+.consent { display: flex; gap: 12px; align-items: flex-start; }
+.consent label { font-size: 15px; }
+.fine { font-size: 13.5px; color: var(--ink-2); margin: 10px 0 0; max-width: 70ch; }
+
+/* upload + preview */
+.nohist { padding: 14px 16px; background: var(--plan); border: 1px solid #b8cfe9; border-radius: var(--r); margin-top: 14px; font-size: 15px; }
+.nohist p { margin: 0 0 6px; }
+.nohist p:last-child { margin: 0; }
+.map { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; margin: 6px 0 4px; }
+.sheet h3 { font: 600 16px/1.3 var(--sans); margin: 22px 0 8px; }
+.scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; max-height: 340px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+th { text-align: left; font-weight: 600; font-size: 13px; color: var(--ink-2); padding: 8px 10px; border-bottom: 1.5px solid var(--rule-strong); white-space: nowrap; position: sticky; top: 0; background: #fff; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td.num, th.num { text-align: right; }
+tr.bad td { background: var(--ng-bg); }
+.stamp { display: inline-block; font: 700 12px/1 var(--cond); letter-spacing: .08em; text-transform: uppercase; padding: 4px 6px 3px; border: 1.5px solid currentColor; border-radius: 3px; }
+.s-ok { color: var(--ok); background: var(--ok-bg); }
+.s-ng { color: var(--ng); background: var(--ng-bg); }
+.buyers { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.buyers li { border: 1px solid var(--rule-strong); border-radius: 4px; padding: 6px 10px; font-size: 14.5px; }
+.buyers li span { color: var(--ink-2); }
+
+/* success */
+.done { text-align: center; padding: 36px 24px; display: grid; gap: 14px; justify-items: center; }
+.done h2 { display: block; font: 700 24px/1.2 var(--sans); }
+.code { font: 700 clamp(40px, 12vw, 72px)/1 var(--cond); letter-spacing: .08em; padding: 18px 26px 14px; border: 4px double var(--shell); border-radius: 6px; color: var(--shell); user-select: all; }
+.wa { display: inline-block; background: var(--ok); color: #fff; text-decoration: none; font-weight: 700; padding: 14px 22px; border-radius: 4px; }
+.wa:hover { filter: brightness(1.1); }
+.done a.link { color: var(--blue); font-weight: 600; }
+
+@media (max-width: 720px) {
+  main { padding: 16px; }
+  .bar, .notice { padding-left: 16px; padding-right: 16px; }
+  .sheet { padding: 18px 16px; }
+  .grid2, .map { grid-template-columns: 1fr; }
+  .bill.head { display: none; }
+  .bill { grid-template-columns: 1fr 1fr; padding: 12px; border: 1px solid var(--rule); border-radius: 4px; align-items: start; }
+  .bill:not(.head) .cl { position: static; width: auto; height: auto; clip: auto; overflow: visible; white-space: normal; display: block; margin-bottom: 4px; }
+  .bill .cell:first-child { grid-column: 1 / -1; }
+  .bill .x { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+<header class="bar"><h1>Kab Tak?</h1><span lang="hi">कब तक?</span><a href="/">See the demo business</a></header>
+<p class="notice" role="note"><strong>Computes and compares options, not financial or legal advice.</strong> Set-up takes about three minutes.</p>
+
+<main id="main">
+  <section class="sheet" aria-labelledby="h1">
+    <h2 id="h1"><b>1</b> Your business</h2>
+    <p class="sub">The name we'll show on your dashboard and use in WhatsApp.</p>
+    <div class="field"><label for="name">Business name</label>
+      <input id="name" autocomplete="organization" maxlength="80" placeholder="e.g. Shree Textiles"></div>
+  </section>
+
+  <section class="sheet" aria-labelledby="h2">
+    <h2 id="h2"><b>2</b> Money today</h2>
+    <p class="sub">In rupees. Round numbers are fine. Anything you don't have, leave 0.</p>
+    <div class="grid2">
+      <div class="field"><label for="bank_inr">Bank balance</label><input id="bank_inr" data-money inputmode="numeric" placeholder="0"><span class="hint">What's in your current account right now.</span></div>
+      <div class="field"><label for="od_limit_inr">Overdraft limit</label><input id="od_limit_inr" data-money inputmode="numeric" placeholder="0"><span class="hint">The most your bank lets you overdraw. No overdraft? Leave 0.</span></div>
+      <div class="field"><label for="od_drawn_inr">Overdraft drawn</label><input id="od_drawn_inr" data-money inputmode="numeric" placeholder="0"><span class="hint">How much of that limit you are using today.</span></div>
+      <div class="field"><label for="stock_inr">Stock</label><input id="stock_inr" data-money inputmode="numeric" placeholder="0"><span class="hint">Value of raw material and goods in hand, at cost.</span></div>
+      <div class="field"><label for="creditors_inr">Creditors</label><input id="creditors_inr" data-money inputmode="numeric" placeholder="0"><span class="hint">What you owe suppliers that is not yet paid.</span></div>
+    </div>
+  </section>
+
+  <section class="sheet" aria-labelledby="h3">
+    <h2 id="h3"><b>3</b> Bills that repeat every month</h2>
+    <p class="sub">Wages, rent, EMI and the like. We turn each into dated payments for the next 120 days. Rows with no amount are ignored.</p>
+    <div class="bills" id="bills" role="group" aria-label="Recurring bills">
+      <div class="bill head" aria-hidden="true"><span>Bill</span><span>Kind</span><span>Amount (₹)</span><span>Day of month</span><span></span></div>
+    </div>
+    <button type="button" class="ghost" id="addbill">Add a bill</button>
+  </section>
+
+  <section class="sheet" aria-labelledby="h4">
+    <h2 id="h4"><b>4</b> Your permission</h2>
+    <div class="consent">
+      <input type="checkbox" id="consent">
+      <label for="consent">I agree that my business data is processed for this service under India's Digital Personal Data Protection Act, 2023. If I upload invoices, the column headers and 5 sample rows are sent to a language model so it can match the columns.</label>
+    </div>
+    <p class="fine">All the arithmetic is done on our server, not by the language model. You can ask for your data to be deleted at any time.</p>
+  </section>
+
+  <section class="sheet" aria-labelledby="h5">
+    <h2 id="h5"><b>5</b> Invoice history <span class="muted" style="font-weight:400;font-size:15px">(optional)</span></h2>
+    <p class="sub">A sales register or invoice list as .csv or .xlsx (Tally and Excel exports work), up to 5 MB. Needs a buyer, an invoice date and an amount; a paid date is what teaches us how each buyer pays.</p>
+    <div class="field"><label for="file">Invoice file</label>
+      <input id="file" type="file" accept=".csv,.xlsx" disabled>
+      <span class="hint" id="filehint">Tick the permission box above to enable the upload.</span></div>
+    <div class="nohist" id="nohist">
+      <p><b>No invoice file? That's fine.</b></p>
+      <p>To predict when buyers will pay, we need either their payment history (upload above) or your opening balance plus your recurring bills (steps 2 and 3). The forecast gets better as you add invoices on WhatsApp.</p>
+    </div>
+    <p class="status" id="upstatus" role="status" hidden></p>
+    <div id="preview" hidden>
+      <h3>Columns we found <span class="muted" style="font-weight:400">(change any that are wrong)</span></h3>
+      <div class="map" id="map"></div>
+      <h3 id="sumline"></h3>
+      <div class="scroll"><table><thead><tr><th>Row</th><th>Buyer</th><th>Invoice date</th><th class="num">Taxable ₹</th><th class="num">Incl. GST ₹</th><th>Paid date</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <p class="fine" id="rowsnote"></p>
+      <h3>Buyers found</h3>
+      <ul class="buyers" id="buyers"></ul>
+      <p style="margin:16px 0 0"><button type="button" class="ghost" id="rmfile">Remove this file</button></p>
+    </div>
+  </section>
+
+  <section class="sheet" aria-labelledby="h6">
+    <h2 id="h6"><b>6</b> Approve</h2>
+    <p class="sub" id="summary">Check the steps above, then approve. You'll get a code to connect your WhatsApp.</p>
+    <button type="button" class="run" id="approve" disabled>Approve and create my account</button>
+    <p class="status err" id="err" role="alert" hidden></p>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const inr = (n) => Number(n).toLocaleString("en-IN");
+const KINDS = ["wages", "emi", "gst", "rent", "power", "advance_tax", "bonus", "supplier", "other"];
+const KIND_LABEL = { wages: "Wages", emi: "EMI / loan", gst: "GST", rent: "Rent", power: "Electricity", advance_tax: "Advance tax", bonus: "Bonus", supplier: "Supplier", other: "Other" };
+const FIELDS = [["buyer", "Buyer / party"], ["invoice_date", "Invoice date"], ["amount", "Amount"], ["amount_basis", "Amount is"],
+                ["paid_date", "Paid date"], ["invoice_no", "Invoice number"]];
+let upload = null;   // {filename, content_b64, mapping, preview}
+
+// ---- bills
+function addBill(b = {}) {
+  const row = document.createElement("div");
+  row.className = "bill";
+  row.innerHTML = `
+    <div class="cell"><label class="cl">Bill</label><input data-k="label" maxlength="40" aria-label="Bill name" placeholder="Name"></div>
+    <div class="cell"><label class="cl">Kind</label><select data-k="kind" aria-label="Kind of bill">${KINDS.map((k) => `<option value="${k}">${KIND_LABEL[k]}</option>`).join("")}</select></div>
+    <div class="cell"><label class="cl">Amount (₹)</label><input data-k="amount" inputmode="numeric" aria-label="Amount in rupees" placeholder="0"></div>
+    <div class="cell"><label class="cl">Day of month</label><input data-k="day" type="number" min="1" max="28" aria-label="Day of month, 1 to 28"></div>
+    <button type="button" class="ghost x" aria-label="Remove this bill">Remove</button>`;
+  for (const [k, v] of Object.entries(b)) row.querySelector(`[data-k=${k}]`).value = v;
+  row.querySelector(".x").onclick = () => row.remove();
+  $("#bills").append(row);
+}
+[["Wages", "wages", 7], ["Rent", "rent", 1], ["Electricity", "power", 10]].forEach(([label, kind, day]) => addBill({ label, kind, day }));
+$("#addbill").onclick = () => addBill({ kind: "other", day: 1 });
+
+const money = (el) => Number(el.value.replace(/[^\d]/g, "") || 0);
+const bills = () => [...document.querySelectorAll(".bill:not(.head)")].map((r) => {
+  const g = (k) => r.querySelector(`[data-k=${k}]`).value;
+  return { label: g("label").trim(), kind: g("kind"), amount: Number(g("amount").replace(/[^\d]/g, "") || 0), day: Number(g("day")) };
+}).filter((b) => b.amount > 0);
+document.querySelectorAll("[data-money]").forEach((el) => el.addEventListener("blur", () => { if (el.value) el.value = inr(money(el)); }));
+
+// ---- consent gates the upload (the file's headers and sample rows go to the language model)
+function sync() {
+  const ok = $("#consent").checked;
+  $("#file").disabled = !ok;
+  $("#filehint").textContent = ok ? "" : "Tick the permission box above to enable the upload.";
+  const good = upload ? upload.preview.rows.some((r) => !r.errors.length) : true;
+  $("#approve").disabled = !($("#name").value.trim() && ok && good);
+  $("#summary").textContent = upload && !good ? "No usable invoice rows yet. Fix the columns above or remove the file." : "Check the steps above, then approve. You'll get a code to connect your WhatsApp.";
+}
+["#consent", "#name"].forEach((s) => $(s).addEventListener("input", sync));
+
+// ---- upload + preview
+const say = (msg, err) => { const s = $("#upstatus"); s.hidden = !msg; s.textContent = msg || ""; s.className = `status${err ? " err" : ""}`; };
+const post = async (url, body) => {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Server said ${res.status}`);
+  return data;
+};
+function b64(buf) {
+  let s = ""; const a = new Uint8Array(buf);
+  for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+async function preview(mapping) {
+  say(mapping ? "Re-reading with your columns…" : "Reading your file…");
+  try {
+    const p = await post("/api/onboard/preview", { filename: upload.filename, content_b64: upload.content_b64, consent: true, mapping });
+    upload.preview = p; upload.mapping = p.mapping;
+    say("");
+    render();
+  } catch (e) { if (!mapping) upload = null; say(e.message, true); render(); }
+}
+$("#file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  if (f.size > 5_000_000) { e.target.value = ""; return say("That file is over 5 MB. Export a shorter date range.", true); }
+  upload = { filename: f.name, content_b64: b64(await f.arrayBuffer()) };
+  await preview(null);
+});
+$("#rmfile").onclick = () => { upload = null; $("#file").value = ""; say(""); render(); };
+
+function render() {
+  $("#preview").hidden = !upload; $("#nohist").hidden = !!upload;
+  if (upload) {
+    const p = upload.preview, H = p.headers, m = upload.mapping;
+    $("#map").innerHTML = FIELDS.map(([f, label]) => {
+      const opts = f === "amount_basis" ? [["taxable", "before GST (taxable)"], ["gross", "including GST"]]
+        : [["", "— none —"], ...H.map((h) => [h, h])];
+      return `<div class="field"><label for="m_${f}">${label}</label><select id="m_${f}" data-f="${f}">${opts.map(([v, t]) =>
+        `<option value="${esc(v)}"${(m[f] || "") === v ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></div>`;
+    }).join("");
+    document.querySelectorAll("#map select").forEach((s) => s.onchange = () => {
+      const next = { ...upload.mapping };
+      document.querySelectorAll("#map select").forEach((x) => next[x.dataset.f] = x.value || null);
+      preview(next);
+    });
+    const bad = p.errors.length, ok = p.rows.length - bad;
+    $("#sumline").textContent = `${ok} of ${p.rows.length} rows will be loaded` + (bad ? `, ${bad} left out because of errors` : "");
+    const shown = [...p.rows.filter((r) => r.errors.length), ...p.rows.filter((r) => !r.errors.length)].slice(0, 200);
+    $("#rows").innerHTML = shown.map((r) => `<tr class="${r.errors.length ? "bad" : ""}"><td>${r.row}</td><td>${esc(r.buyer) || "—"}</td><td>${esc(r.invoice_date) || "—"}</td>
+      <td class="num">${r.taxable_inr ? inr(r.taxable_inr) : "—"}</td><td class="num">${r.gross_inr ? inr(r.gross_inr) : "—"}</td><td>${esc(r.paid_date) || "open"}</td>
+      <td>${r.errors.length ? `<span class="stamp s-ng">Left out</span> ${esc(r.errors.join(", "))}` : `<span class="stamp s-ok">OK</span>`}</td></tr>`).join("");
+    $("#rowsnote").textContent = p.rows.length > shown.length ? `Showing ${shown.length} of ${p.rows.length} rows, rows with errors first.` : "Rows with errors are shown first and are not loaded.";
+    $("#buyers").innerHTML = p.buyers.length ? p.buyers.map((b) => `<li>${esc(b.buyer)} <span>₹${inr(b.revenue_inr)} · ${b.invoices} invoice${b.invoices > 1 ? "s" : ""}</span></li>`).join("")
+      : "<li>None yet. Check the buyer, date and amount columns.</li>";
+  }
+  sync();
+}
+
+// ---- approve
+$("#approve").onclick = async () => {
+  const btn = $("#approve"), err = $("#err");
+  btn.disabled = true; err.hidden = true; btn.textContent = "Creating…";
+  try {
+    const position = Object.fromEntries([...document.querySelectorAll("[data-money]")].map((el) => [el.id, money(el)]));
+    const d = await post("/api/onboard/commit", { name: $("#name").value.trim(), position, recurring: bills(), consent: true,
+      upload: upload && { filename: upload.filename, content_b64: upload.content_b64, mapping: upload.mapping } });
+    success(d);
+  } catch (e) { err.textContent = e.message; err.hidden = false; btn.textContent = "Approve and create my account"; sync(); }
+};
+function success(d) {
+  const msg = `JOIN ${d.join_code}`, num = (d.bot_number || "").replace(/\D/g, "");
+  $("#main").innerHTML = `<section class="sheet done" aria-live="polite">
+    <h2>You're set up, ${esc($("#name").value.trim())}</h2>
+    <p class="muted" style="margin:0">Send this message to Kab Tak on WhatsApp to connect your number. It works once.</p>
+    <div class="code">${esc(msg)}</div>
+    ${num ? `<a class="wa" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}">Open WhatsApp and send it</a>`
+          : `<p class="status">The bot's WhatsApp number isn't configured on this server yet. Send the message above to the Kab Tak number you were given.</p>`}
+    <p class="muted" style="margin:0">${d.invoices_loaded ? `${d.invoices_loaded} invoices loaded.` : "No invoices yet: add them on WhatsApp and the forecast improves."}</p>
+    <a class="link" href="/?tenant=${encodeURIComponent(d.tenant_id)}">Open your dashboard</a></section>`;
+  scrollTo(0, 0);
+};
+sync();
+</script>
+</body>
+</html>
