@@ -147,7 +147,8 @@ def facts(r, lang):
          "chance_of_running_short_in_riskiest_week": pc(w["p_shortfall"]),
          "acceptable_risk_limit": pc(r["risk_target"]),
          "bills_you_must_pay_in_riskiest_week": w["obligation"] or "-",
-         "overdraft_you_can_still_use": _inr(t["headroom_inr"])}
+         "chance_all_bills_get_paid": pc(1 - w["p_shortfall"]),
+         "overdraft_left_already_used_in_this_forecast": _inr(t["headroom_inr"])}
     if r.get("baseline"):
         f["chance_of_running_short_before_this_change"] = pc(r["baseline"]["worst_week"]["p_shortfall"])
     if s["type"] == "status":
@@ -170,7 +171,9 @@ def facts(r, lang):
 
 
 EXPLAIN_PROMPT = """You explain a cash-flow forecast to a small-factory owner who is not an accountant.
-Write {lang}, 3 or 4 short sentences, plain everyday words. Answer the owner's question first, consistent with "verdict", then the most important risk, then what they could do (only what the facts support).
+Write {lang}, 3 or 4 short sentences, plain everyday words. Answer the owner's question first, then the most important risk, then what they could do (only what the facts support).
+TONE: "verdict" decides how the first sentence answers. Follow it exactly. A risk that is only above the acceptable limit is "yes, but it's tight", never "no". Only say no, or that they can't or shouldn't, when verdict starts with "no". The owner decides; you describe the odds and the options.
+The forecast already assumes the owner uses all the overdraft left, so never suggest the overdraft as a way to cover or fix anything. If the facts give no fix, don't invent one.
 Each fact's name says exactly what it means; don't use a number for anything else. Bills are money going out, never coming in.
 NUMBERS, strict rules:
 - Every number you write must be copied from the values in "facts" (Devanagari digits are fine), or from the owner's question.
@@ -231,8 +234,15 @@ def explain(question, result, lang="en"):
 
 
 def _verdict(r):
-    p = r["worst_week"]["p_shortfall"]   # same three levels as the UI stamp (app.js level())
-    return "safe" if p <= r["risk_target"] else "at risk" if p < 0.5 else "likely to fall short"
+    """How to answer, graded by the riskiest week's chance of a missed payment."""
+    p = r["worst_week"]["p_shortfall"]
+    if p <= r["risk_target"]:
+        return "yes: safe, within the acceptable limit"
+    if p < 0.25:
+        return "yes, most likely fine, but tighter than the acceptable limit: say 'yes, but', never 'no'"
+    if p < 0.5:
+        return "risky: a real chance of missing a payment; don't give a flat yes or no, say what would make it safer"
+    return "no, not as things stand: missing a payment is more likely than not"
 
 
 def _order_verdict(o):
