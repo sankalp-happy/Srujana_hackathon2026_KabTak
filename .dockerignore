@@ -1,0 +1,7 @@
+.git
+.claude
+.env
+.env.*
+**/__pycache__
+whatsapp
+docs

@@ -39,7 +39,18 @@ Build plan, research notes and event rules: [docs/planning](docs/planning/README
 
 ## Setup
 
-*To be added once the first runnable version is committed.*
+Needs Docker only. Put your keys in a `.env` file in the repo root (not committed):
+
+```
+GROQ_KEY=...
+OPENROUTER_KEY=...
+```
+
+```bash
+docker compose up --build
+```
+
+Open http://localhost:8000. Speech-to-text uses `elevenlabs/scribe-v2` via OpenRouter, with Groq Whisper as the fallback; the language model is Groq `openai/gpt-oss-120b`. Without keys, the typed form ("Or build it by hand") still works. The ledger is synthetic and is generated at build time.
 
 ## Project structure
 

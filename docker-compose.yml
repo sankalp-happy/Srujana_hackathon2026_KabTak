@@ -1,0 +1,9 @@
+# Run:  docker compose up --build   then open http://localhost:8000
+# Keys: put GROQ_KEY and OPENROUTER_KEY in a .env file next to this one (never committed).
+services:
+  kabtak:
+    build: .
+    ports: ["8000:8000"]
+    env_file:
+      - path: .env
+        required: false

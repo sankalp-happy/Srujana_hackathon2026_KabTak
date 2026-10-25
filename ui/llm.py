@@ -4,7 +4,7 @@ The LLM never computes numbers. parse() only fills the typed Scenario, which the
 anything runs. explain() writes prose from the engine's own numbers; any sentence with a number that isn't
 one of them is dropped, and a template sentence stands in if the answer itself fails.
 """
-import json, os, re, sys, urllib.error, urllib.request, uuid
+import base64, json, os, re, sys, urllib.error, urllib.request, uuid
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -21,8 +21,9 @@ except ImportError:
     GST_RATE, TODAY = 0.18, date.today()
 
 
-def _key():
-    k = os.environ.get("GROQ_KEY") or os.environ.get("GROQ_API_KEY")
+def _key(*names):
+    names = names or ("GROQ_KEY", "GROQ_API_KEY")
+    k = next((os.environ[n] for n in names if os.environ.get(n)), None)
     if k:
         return k
     for d in Path(__file__).resolve().parents:  # repo root .env (gitignored); worktrees look further up
@@ -30,9 +31,9 @@ def _key():
         if f.exists():
             for line in f.read_text().splitlines():
                 name, _, v = line.partition("=")
-                if name.strip() in ("GROQ_KEY", "GROQ_API_KEY") and v.strip():
+                if name.strip() in names and v.strip():
                     return v.strip().strip("'\"")
-    raise RuntimeError("No GROQ_KEY in the environment or .env")
+    raise RuntimeError(f"No {names[0]} in the environment or .env")
 
 
 def _chat(messages, schema=None, model=MODEL, temperature=0):
@@ -58,7 +59,27 @@ STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 STT_PROMPT = "ऑर्डर, लाख, दिवस, पगार, बजाज, टाटा, बायर ए, बायर बी, Buyer A, Buyer B, CPSE, wages, GST, overdraft, advance."
 
 
-def transcribe(audio, mime="audio/webm", model=STT_MODEL):
+OR_STT_MODEL = os.environ.get("STT_MODEL", "elevenlabs/scribe-v2")
+OR_STT_URL = "https://openrouter.ai/api/v1/audio/transcriptions"
+
+
+def transcribe(audio, mime="audio/webm"):
+    """OpenRouter Voxtral first; any failure falls back to Groq Whisper."""
+    try:
+        fmt = {"mpeg": "mp3", "mp4": "m4a", "x-wav": "wav"}.get(mime.split(";")[0].split("/")[-1], mime.split(";")[0].split("/")[-1])
+        body = json.dumps({"model": OR_STT_MODEL, "input_audio": {"data": base64.b64encode(audio).decode(), "format": fmt}}).encode()
+        req = urllib.request.Request(OR_STT_URL, body, {"Authorization": f"Bearer {_key('OPENROUTER_KEY')}",
+                                                        "Content-Type": "application/json", "User-Agent": "kabtak-ui"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            text = json.load(r)["text"].strip()
+        if text:
+            return text
+    except Exception as e:
+        print("transcribe: OpenRouter failed, falling back to Groq Whisper:", e, file=sys.stderr)
+    return _whisper(audio, mime)
+
+
+def _whisper(audio, mime="audio/webm", model=STT_MODEL):
     ext = {"webm": "webm", "ogg": "ogg", "mp4": "m4a", "mpeg": "mp3", "wav": "wav", "x-wav": "wav", "aiff": "aiff"}.get(
         mime.split(";")[0].split("/")[-1], "webm")
     b = uuid.uuid4().hex
@@ -73,7 +94,7 @@ def transcribe(audio, mime="audio/webm", model=STT_MODEL):
             return json.load(r)["text"].strip()
     except urllib.error.HTTPError as e:
         if e.code == 429 and model != STT_FALLBACK:
-            return transcribe(audio, mime, STT_FALLBACK)
+            return _whisper(audio, mime, STT_FALLBACK)
         raise
 
 
