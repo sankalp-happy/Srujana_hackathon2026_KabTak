@@ -48,11 +48,11 @@ def reply_for(sender: str, text: str) -> str:
             return str(e)
     if sender in pending and t in NO:
         pending.pop(sender)
-        return "ठीक आहे, पुन्हा सांगा."
+        return "OK, please say it again."
     try:
         s = parse_scenario(text)
     except Exception:  # LLM down / key missing
-        return "माफ करा, प्रश्न समजला नाही. कृपया पुन्हा लिहा."
+        return "Sorry, I couldn't understand that. Please rephrase."
     if s.get("needs_clarification"):
         return s["question"]
     if s["type"] == "status":  # no fields to misread, so nothing to confirm
@@ -125,18 +125,18 @@ if __name__ == "__main__":
     c = TestClient(app)
     with mock.patch(f"{__name__}.send_text") as st, mock.patch(f"{__name__}.parse_scenario", return_value=order):
         assert c.post("/webhook", json=payload({"conversation": "Bajaj 12 lakh order, 90 days?"})).status_code == 200
-        assert "बरोबर आहे का" in st.call_args[0][1]
-        c.post("/webhook/messages-upsert", json=payload({"conversation": "हो"}))  # real engine
+        assert "Correct?" in st.call_args[0][1]
+        c.post("/webhook/messages-upsert", json=payload({"conversation": "yes"}))  # real engine
         assert st.call_args[0][0] == "919999999999"
-        assert "%" in st.call_args[0][1] and "आठवड्यात" in st.call_args[0][1]
+        assert "%" in st.call_args[0][1] and "Week of" in st.call_args[0][1]
         n = st.call_count
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
             c.post("/webhook", json=payload({"conversation": "what is the status"}))
-        assert st.call_count == n + 1 and "बरोबर आहे का" not in st.call_args[0][1]  # answered directly
+        assert st.call_count == n + 1 and "Correct?" not in st.call_args[0][1]  # answered directly
         bad = dict(order, type="delay_payment", party="Nobody", days=30)
         with mock.patch(f"{__name__}.parse_scenario", return_value=bad):
             c.post("/webhook", json=payload({"conversation": "x"}))
-            c.post("/webhook", json=payload({"conversation": "हो"}))
+            c.post("/webhook", json=payload({"conversation": "yes"}))
         assert "Unknown party" in st.call_args[0][1]  # engine ValueError message
         lid = payload({"conversation": "hi"})
         lid["data"]["key"].update(remoteJid="123@lid", remoteJidAlt="918888888888@s.whatsapp.net")
