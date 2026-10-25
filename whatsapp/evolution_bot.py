@@ -174,6 +174,9 @@ if __name__ == "__main__":
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
             c.post("/webhook", json=payload({"conversation": "what is the status"}))
         assert "Please confirm" in st.call_args[0][1]  # even status is confirmed first
+        from whatsapp.reply import readback as rb
+        pr = rb(dict(order, type="payment_received", party="Buyer A", amount_inr=2000000, days=None, date="2026-11-03"))
+        assert "Incoming payment" in pr and "Buyer: *Buyer A*" in pr and "₹20 L (₹20,00,000)" in pr and "3 Nov 2026" in pr
         bad = dict(order, type="delay_payment", party="Nobody", days=30)
         with mock.patch(f"{__name__}.parse_scenario", return_value=bad):
             c.post("/webhook", json=payload({"conversation": "x"}))
