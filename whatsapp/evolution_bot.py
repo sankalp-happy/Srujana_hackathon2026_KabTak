@@ -6,6 +6,7 @@ Env:   EVOLUTION_URL, EVOLUTION_INSTANCE, AUTHENTICATION_API_KEY  (see whatsapp/
 """
 import base64
 import json
+import re
 import os
 from pathlib import Path
 
@@ -42,7 +43,8 @@ pending: dict[str, dict] = {}  # sender -> scenario awaiting yes/no (demo only)
 
 
 def reply_for(sender: str, text: str) -> str:
-    t = text.strip().lower()
+    words = re.findall(r"\w+", text.lower())  # voice transcripts come with punctuation ("Yes.")
+    t = words[0] if words else ""
     if sender in pending and t in YES:
         try:
             r = engine_answer(pending.pop(sender))
@@ -106,6 +108,7 @@ async def webhook(request: Request, event: str = ""):
     sender = (k.get("remoteJidAlt") if k["remoteJid"].endswith("@lid") and k.get("remoteJidAlt") else k["remoteJid"]).split("@")[0]
     msg = d.get("message") or {}
     text = msg.get("conversation") or (msg.get("extendedTextMessage") or {}).get("text") or ""
+    heard = "audioMessage" in msg
     if "audioMessage" in msg:
         if transcribe is None:
             text = ""
@@ -117,6 +120,8 @@ async def webhook(request: Request, event: str = ""):
                 text, out = "", "Couldn't read the voice note. Please type your question."
     if text:
         out = reply_for(sender, text)
+        if heard:
+            out = f'_Heard: "{text}"_\n\n{out}'
     elif "audioMessage" not in msg:
         return {"ok": True}
     send_text(sender, out)
@@ -143,12 +148,12 @@ if __name__ == "__main__":
     c = TestClient(app)
     with mock.patch(f"{__name__}.send_text") as st, mock.patch(f"{__name__}.parse_scenario", return_value=order):
         assert c.post("/webhook", json=payload({"conversation": "Bajaj 12 lakh order, 90 days?"})).status_code == 200
-        assert "Correct?" in st.call_args[0][1]
+        assert "Please confirm" in st.call_args[0][1]
         with mock.patch(f"{__name__}.send_chart") as sc:
-            c.post("/webhook/messages-upsert", json=payload({"conversation": "yes"}))  # real engine
+            c.post("/webhook/messages-upsert", json=payload({"conversation": "Yes."}))  # real engine; "Yes." as a transcript would give
         assert sc.call_args[0][0] == "919999999999" and "fan" in sc.call_args[0][1]
         assert st.call_args[0][0] == "919999999999"
-        assert "%" in st.call_args[0][1] and "Week of" in st.call_args[0][1]
+        assert "%" in st.call_args[0][1] and "Riskiest week" in st.call_args[0][1]
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, needs_clarification=True, question="Which buyer?")) as ps:
             c.post("/webhook", json=payload({"conversation": "what if he pays late?"}))
             assert st.call_args[0][1] == "Which buyer?"
@@ -159,7 +164,7 @@ if __name__ == "__main__":
         n = st.call_count
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
             c.post("/webhook", json=payload({"conversation": "what is the status"}))
-        assert "Correct?" in st.call_args[0][1]  # even status is confirmed first
+        assert "Please confirm" in st.call_args[0][1]  # even status is confirmed first
         bad = dict(order, type="delay_payment", party="Nobody", days=30)
         with mock.patch(f"{__name__}.parse_scenario", return_value=bad):
             c.post("/webhook", json=payload({"conversation": "x"}))
