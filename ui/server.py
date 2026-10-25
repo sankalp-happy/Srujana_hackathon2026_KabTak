@@ -46,8 +46,17 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path not in ("/api/answer", "/api/parse", "/api/explain"):
+        if self.path not in ("/api/answer", "/api/parse", "/api/explain", "/api/transcribe"):
             return self.send_json(404, {"error": "not found"})
+        if self.path == "/api/transcribe":  # body is the raw recording from the mic button
+            n = int(self.headers.get("Content-Length", 0))
+            if not 0 < n <= 25_000_000:  # Groq's upload limit
+                return self.send_json(400, {"error": "Recording is empty or too long."})
+            import llm
+            try:
+                return self.send_json(200, {"text": llm.transcribe(self.rfile.read(n), self.headers.get("Content-Type", "audio/webm"))})
+            except Exception as e:
+                return self.send_json(502, {"error": f"Speech-to-text unavailable ({e}). Type the question instead."})
         try:
             scenario = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
         except ValueError:

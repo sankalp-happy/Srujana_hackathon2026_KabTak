@@ -1,10 +1,10 @@
-"""Groq LLM for the free-text box: parse a question into a Scenario, and explain an engine result.
+"""Groq for the ask box: transcribe speech, parse a question into a Scenario, explain an engine result.
 
-The LLM never produces numbers. parse() only fills the typed Scenario, which the owner confirms before
-anything runs. explain() writes prose with {placeholders}; code fills them from the engine result, and a
-reply that writes any number of its own is thrown away for a template sentence.
+The LLM never computes numbers. parse() only fills the typed Scenario, which the owner confirms before
+anything runs. explain() writes prose from the engine's own numbers; any sentence with a number that isn't
+one of them is dropped, and a template sentence stands in if the answer itself fails.
 """
-import json, os, re, sys, urllib.error, urllib.request
+import json, os, re, sys, urllib.error, urllib.request, uuid
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -49,6 +49,32 @@ def _chat(messages, schema=None, model=MODEL, temperature=0):
             return _chat(messages, schema, FALLBACK, temperature)
         raise
     return json.loads(text) if schema else text.strip()
+
+
+# ---------- speech to text ----------
+STT_MODEL, STT_FALLBACK = "whisper-large-v3", "whisper-large-v3-turbo"   # full model is better on Marathi
+STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+# Biases Whisper towards the words owners use; no language set, so Marathi, Hindi and English all work.
+STT_PROMPT = "ऑर्डर, लाख, दिवस, पगार, बजाज, टाटा, बायर ए, बायर बी, Buyer A, Buyer B, CPSE, wages, GST, overdraft, advance."
+
+
+def transcribe(audio, mime="audio/webm", model=STT_MODEL):
+    ext = {"webm": "webm", "ogg": "ogg", "mp4": "m4a", "mpeg": "mp3", "wav": "wav", "x-wav": "wav", "aiff": "aiff"}.get(
+        mime.split(";")[0].split("/")[-1], "webm")
+    b = uuid.uuid4().hex
+    field = lambda k, v: f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
+    body = (field("model", model) + field("response_format", "json") + field("prompt", STT_PROMPT) +
+            f'--{b}\r\nContent-Disposition: form-data; name="file"; filename="q.{ext}"\r\n'
+            f"Content-Type: {mime.split(';')[0]}\r\n\r\n".encode() + audio + f"\r\n--{b}--\r\n".encode())
+    req = urllib.request.Request(STT_URL, body, {"Authorization": f"Bearer {_key()}", "User-Agent": "kabtak-ui",
+                                                 "Content-Type": f"multipart/form-data; boundary={b}"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.load(r)["text"].strip()
+    except urllib.error.HTTPError as e:
+        if e.code == 429 and model != STT_FALLBACK:
+            return transcribe(audio, mime, STT_FALLBACK)
+        raise
 
 
 # ---------- parse ----------

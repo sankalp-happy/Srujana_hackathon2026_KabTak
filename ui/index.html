@@ -226,6 +226,10 @@ textarea { resize: vertical; min-height: 60px; font-family: var(--deva), var(--s
 .status.err { background: var(--ng-bg); color: var(--ng); }
 .ask { display: grid; gap: 10px; margin-bottom: 18px; }
 .ask textarea { min-height: 76px; font-size: 17px; }
+.askbtns { display: flex; gap: 8px; }
+.askbtns > * { flex: 1; min-width: 0; }
+#mic { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+#mic[aria-pressed="true"] { border-color: var(--ng); color: var(--ng); background: var(--ng-bg); }
 .readback { border: 1px solid var(--blue); background: var(--plan); border-radius: 4px; padding: 12px; display: grid; gap: 10px; }
 .readback p { margin: 0; font-weight: 600; }
 .readback .btns { display: flex; gap: 8px; }
@@ -348,7 +352,10 @@ details.json pre { margin: 8px 0 0; background: #f4f7fa; border: 1px solid var(-
     <form class="ask" id="ask" novalidate>
       <label class="sr" for="q">Your question</label>
       <textarea id="q" name="q" placeholder="बजाजची १२ लाखांची ऑर्डर ९० दिवसांच्या मुदतीवर घेऊ का?"></textarea>
-      <button class="run" type="submit">Ask</button>
+      <div class="askbtns">
+        <button class="run" type="submit">Ask</button>
+        <button class="ghost" type="button" id="mic" aria-pressed="false"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>Speak</span></button>
+      </div>
       <p class="status" id="ask-status" role="status" hidden></p>
       <div class="readback" id="readback" hidden>
         <span class="muted">Did you mean:</span>

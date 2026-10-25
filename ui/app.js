@@ -719,6 +719,40 @@ ask.addEventListener("submit", async (e) => {
 });
 ask.q.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask.requestSubmit(); } });
 
+/* mic: record, Groq Whisper writes it into the box, then the usual parse + read-back */
+const mic = $("#mic");
+let rec = null;
+if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) mic.hidden = true;
+function setMic(on) { mic.setAttribute("aria-pressed", String(on)); mic.querySelector("span").textContent = on ? "Stop" : "Speak"; }
+mic.addEventListener("click", async () => {
+  if (rec) return rec.stop();
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch { return setAsk("Can't use the microphone. Allow it in the browser, or type the question.", true); }
+  const chunks = [], r = new MediaRecorder(stream);
+  const cap = setTimeout(() => r.state === "recording" && r.stop(), 30000);  // one question, not a speech
+  r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  r.onstop = async () => {
+    clearTimeout(cap); stream.getTracks().forEach((t) => t.stop());
+    rec = null; setMic(false);
+    const blob = new Blob(chunks, { type: r.mimeType || "audio/webm" });
+    if (!blob.size) return setAsk("Didn't hear anything. Try again or type it.", true);
+    mic.disabled = true; setAsk("Writing down what you said…");
+    try {
+      const res = await fetch("/api/transcribe", { method: "POST", headers: { "Content-Type": blob.type }, body: blob });
+      const body = await res.json();
+      if (!res.ok) return setAsk(body.error, true);
+      if (!body.text) return setAsk("Didn't catch that. Try again or type it.", true);
+      ask.q.value = body.text;
+      ask.requestSubmit();
+    } catch {
+      setAsk("Can't reach the server. Start it with python3 ui/server.py.", true);
+    } finally { mic.disabled = false; }
+  };
+  rec = r; r.start(); setMic(true);
+  setAsk("Listening… tap Stop when you're done.");
+});
+
 $("#rb-run").addEventListener("click", async () => {
   const { lang, ...s } = pending;
   if (!(await run(s, $("#rb-run"), setAsk))) return;
