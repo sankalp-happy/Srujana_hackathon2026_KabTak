@@ -658,7 +658,8 @@ function prefill(s) {
 function setStatus(msg, err) { const st = $("#status"); st.textContent = msg; st.className = `status${err ? " err" : ""}`; }
 
 form.addEventListener("input", (e) => (e.target === form.type ? syncFields() : showJson()));
-const post = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const TENANT = new URLSearchParams(location.search).get("tenant");   // /?tenant=<id>; none = the demo business
+const post = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(TENANT ? { ...body, tenant: TENANT } : body) });
 // Runs a scenario through the engine and redraws; say(msg, err) reports progress. Returns true on success.
 async function run(s, btn, say) {
   btn.disabled = true; say("Running…");
@@ -816,8 +817,15 @@ window.addEventListener("resize", () => {
   if (!VIEWS.includes(v)) try { v = localStorage.getItem("kabtak-view"); } catch {}
   setView(VIEWS.includes(v) ? v : "owner");
   try {
-    const body = await (await fetch("/api/result")).json();
+    const res = await fetch("/api/result" + (TENANT ? `?tenant=${encodeURIComponent(TENANT)}` : ""));
+    const body = await res.json();
+    if (!res.ok) return setStatus(body.error || "The engine could not answer.", true);
     R = body.result; SOURCE = body.source;
+    if (body.business_name) {
+      $("#biz").textContent = body.business_name; $("#biz").hidden = false;
+      document.title = `${body.business_name} · Kab Tak?`;
+    }
+    if (body.synthetic === false) $("#synth").hidden = true;
     $("#parties").innerHTML = [...new Set([...(R.kab_tak || []).map((b) => b.buyer), R.scenario && R.scenario.party].filter(Boolean))]
       .map((p) => `<option value="${esc(p)}">`).join("");
     prefill(R.scenario);
