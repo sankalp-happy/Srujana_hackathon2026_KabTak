@@ -1,0 +1,19 @@
+date,label,kind,amount_inr
+2026-11-01,Shop rent,rent,18000
+2026-11-05,Helpers' wages,wages,28000
+2026-11-07,Oven loan EMI,emi,12000
+2026-11-10,Power,power,9000
+2026-11-12,Gas cylinders,other,6000
+2026-11-15,Flour & oil (supplier),supplier,40000
+2026-12-01,Shop rent,rent,18000
+2026-12-05,Helpers' wages,wages,28000
+2026-12-07,Oven loan EMI,emi,12000
+2026-12-10,Power,power,9000
+2026-12-12,Gas cylinders,other,6000
+2026-12-15,Flour & oil (supplier),supplier,40000
+2027-01-01,Shop rent,rent,18000
+2027-01-05,Helpers' wages,wages,28000
+2027-01-07,Oven loan EMI,emi,12000
+2027-01-10,Power,power,9000
+2027-01-12,Gas cylinders,other,6000
+2027-01-15,Flour & oil (supplier),supplier,40000

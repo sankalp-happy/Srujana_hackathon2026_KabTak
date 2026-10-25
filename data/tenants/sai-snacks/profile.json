@@ -1,0 +1,15 @@
+{
+  "tenant_id": "sai-snacks",
+  "business_name": "Sai Snacks, Pune",
+  "buyers": [
+    "Gupta Kirana",
+    "Sweet Corner Bakery",
+    "Daily Needs Mart"
+  ],
+  "today": "2026-10-25",
+  "synthetic": true,
+  "params": {
+    "gst_rate": 0.12,
+    "tds_rate": 0.0
+  }
+}
