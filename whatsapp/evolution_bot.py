@@ -83,8 +83,7 @@ def send_text(number: str, text: str) -> None:
 def send_chart(number: str, r: dict) -> None:
     from whatsapp.chart import chart_png
     _evo("/message/sendMedia", {"number": number, "mediatype": "image", "mimetype": "image/png",
-                                "fileName": "kabtak.png", "caption": "Cash outlook (synthetic data)",
-                                "media": base64.b64encode(chart_png(r)).decode()})
+                                "fileName": "kabtak.png", "media": base64.b64encode(chart_png(r)).decode()})
 
 
 def audio_bytes(data: dict) -> bytes:
