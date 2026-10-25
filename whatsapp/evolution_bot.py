@@ -36,6 +36,7 @@ from whatsapp.reply import format_reply, readback
 
 YES = {"हो", "होय", "हां", "हाँ", "yes", "y", "ok", "okay"}
 NO = {"नाही", "नको", "no", "n"}
+asked: dict[str, tuple[str, str]] = {}  # sender -> (original text, our clarification question)
 pending: dict[str, dict] = {}  # sender -> scenario awaiting yes/no (demo only)
 
 
@@ -49,11 +50,15 @@ def reply_for(sender: str, text: str) -> str:
     if sender in pending and t in NO:
         pending.pop(sender)
         return "OK, please say it again."
+    if sender in asked:  # the reply answers our question: parse the last exchange together, not the whole chat
+        orig, q = asked.pop(sender)
+        text = f"{orig}\nQuestion asked: {q}\nOwner's answer: {text}"
     try:
         s = parse_scenario(text)
     except Exception:  # LLM down / key missing
         return "Sorry, I couldn't understand that. Please rephrase."
     if s.get("needs_clarification"):
+        asked[sender] = (text, s["question"])
         return s["question"]
     if s["type"] == "status":  # no fields to misread, so nothing to confirm
         return format_reply(engine_answer(s))
@@ -129,6 +134,13 @@ if __name__ == "__main__":
         c.post("/webhook/messages-upsert", json=payload({"conversation": "yes"}))  # real engine
         assert st.call_args[0][0] == "919999999999"
         assert "%" in st.call_args[0][1] and "Week of" in st.call_args[0][1]
+        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, needs_clarification=True, question="Which buyer?")) as ps:
+            c.post("/webhook", json=payload({"conversation": "what if he pays late?"}))
+            assert st.call_args[0][1] == "Which buyer?"
+        with mock.patch(f"{__name__}.parse_scenario", return_value=order) as ps:
+            c.post("/webhook", json=payload({"conversation": "Buyer A"}))
+            assert "Which buyer?" in ps.call_args[0][0] and "what if he pays late?" in ps.call_args[0][0]
+        pending.clear()
         n = st.call_count
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
             c.post("/webhook", json=payload({"conversation": "what is the status"}))
