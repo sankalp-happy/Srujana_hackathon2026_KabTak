@@ -37,6 +37,7 @@ from whatsapp.reply import format_reply, readback
 YES = {"हो", "होय", "हां", "हाँ", "yes", "y", "ok", "okay"}
 NO = {"नाही", "नको", "no", "n"}
 asked: dict[str, tuple[str, str]] = {}  # sender -> (original text, our clarification question)
+last_result: dict[str, dict] = {}  # sender -> engine result, charted after the reply
 pending: dict[str, dict] = {}  # sender -> scenario awaiting yes/no (demo only)
 
 
@@ -44,9 +45,11 @@ def reply_for(sender: str, text: str) -> str:
     t = text.strip().lower()
     if sender in pending and t in YES:
         try:
-            return format_reply(engine_answer(pending.pop(sender)))
+            r = engine_answer(pending.pop(sender))
         except ValueError as e:
             return str(e)
+        last_result[sender] = r
+        return format_reply(r)
     if sender in pending and t in NO:
         pending.pop(sender)
         return "OK, please say it again."
@@ -60,8 +63,6 @@ def reply_for(sender: str, text: str) -> str:
     if s.get("needs_clarification"):
         asked[sender] = (text, s["question"])
         return s["question"]
-    if s["type"] == "status":  # no fields to misread, so nothing to confirm
-        return format_reply(engine_answer(s))
     pending[sender] = s
     return readback(s)
 
@@ -75,6 +76,13 @@ def _evo(path: str, body: dict) -> httpx.Response:
 
 def send_text(number: str, text: str) -> None:
     _evo("/message/sendText", {"number": number, "text": text})
+
+
+def send_chart(number: str, r: dict) -> None:
+    from whatsapp.chart import chart_png
+    _evo("/message/sendMedia", {"number": number, "mediatype": "image", "mimetype": "image/png",
+                                "fileName": "kabtak.png", "caption": "Cash outlook (synthetic data)",
+                                "media": base64.b64encode(chart_png(r)).decode()})
 
 
 def audio_bytes(data: dict) -> bytes:
@@ -112,6 +120,11 @@ async def webhook(request: Request, event: str = ""):
     elif "audioMessage" not in msg:
         return {"ok": True}
     send_text(sender, out)
+    if sender in last_result:
+        try:
+            send_chart(sender, last_result.pop(sender))
+        except Exception as e:  # chart is a bonus; the text reply already went out
+            print("chart failed:", e)
     return {"ok": True}  # always ack so Evolution doesn't retry
 
 
@@ -131,7 +144,9 @@ if __name__ == "__main__":
     with mock.patch(f"{__name__}.send_text") as st, mock.patch(f"{__name__}.parse_scenario", return_value=order):
         assert c.post("/webhook", json=payload({"conversation": "Bajaj 12 lakh order, 90 days?"})).status_code == 200
         assert "Correct?" in st.call_args[0][1]
-        c.post("/webhook/messages-upsert", json=payload({"conversation": "yes"}))  # real engine
+        with mock.patch(f"{__name__}.send_chart") as sc:
+            c.post("/webhook/messages-upsert", json=payload({"conversation": "yes"}))  # real engine
+        assert sc.call_args[0][0] == "919999999999" and "fan" in sc.call_args[0][1]
         assert st.call_args[0][0] == "919999999999"
         assert "%" in st.call_args[0][1] and "Week of" in st.call_args[0][1]
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, needs_clarification=True, question="Which buyer?")) as ps:
@@ -144,7 +159,7 @@ if __name__ == "__main__":
         n = st.call_count
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
             c.post("/webhook", json=payload({"conversation": "what is the status"}))
-        assert st.call_count == n + 1 and "Correct?" not in st.call_args[0][1]  # answered directly
+        assert "Correct?" in st.call_args[0][1]  # even status is confirmed first
         bad = dict(order, type="delay_payment", party="Nobody", days=30)
         with mock.patch(f"{__name__}.parse_scenario", return_value=bad):
             c.post("/webhook", json=payload({"conversation": "x"}))
