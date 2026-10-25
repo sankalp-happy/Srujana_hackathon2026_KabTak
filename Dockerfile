@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 WORKDIR /app
-RUN pip install --no-cache-dir numpy==1.26.4 pandas==2.2.1
+RUN pip install --no-cache-dir numpy==1.26.4 pandas==2.2.1 openpyxl==3.1.5
 COPY engine engine
 COPY ui ui
 COPY fixtures fixtures

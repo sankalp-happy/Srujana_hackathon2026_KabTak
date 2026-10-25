@@ -113,7 +113,8 @@ SCHEMA = {
         "lang": {"type": "string", "enum": list(LANGS)},
     },
 }
-PARSE_PROMPT = f"""You turn a small-factory owner's question about cash flow into one typed scenario. Today is {TODAY:%Y-%m-%d} ({TODAY:%A}).
+def _parse_prompt(buyers, today):
+    return f"""You turn a small-factory owner's question about cash flow into one typed scenario. Today is {today:%Y-%m-%d} ({today:%A}).
 Copy values only from what the owner said; never guess an amount, a number of days or a date.
 
 type, its required fields, and what days means:
@@ -128,15 +129,16 @@ type, its required fields, and what days means:
 - add_* SAVE data; every other type is a what-if that saves nothing. Use add_* only when the owner states a real invoice or bill and asks to add, record, note, save or enter it. "Can I spend / what if / should I" is a what-if (expense_shock, new_order). A bare amount and date with no ask ("Machine repair 2 lakh on 10 Nov") is unclear: set needs_clarification and ask "Should I save this as a real bill, or is it a what-if?" (or "real invoice").
 
 Rules:
-- Known buyers: {", ".join(BUYERS)}. For delay_payment, payment_received and add_invoice the party must be one of these, written exactly so; if the owner names someone else, ask which of these buyers they mean, listing all four. For new_order use the name as said (e.g. "Bajaj"), or "New buyer" if unnamed.
+- Known buyers: {", ".join(buyers)}. For delay_payment, payment_received and add_invoice the party must be one of these, written exactly so; if the owner names someone else, ask which of these buyers they mean, listing them all. For new_order use the name as said (e.g. "Bajaj"), or "New buyer" if unnamed.
 - amount_inr is whole rupees: 1 lakh = 100000, 1 crore = 10000000, 1 hazaar = 1000. "12 L" = 1200000. Read Devanagari digits (०-९) and Marathi/Hindi number words.
-- "a month" = 30 days, "two months" = 60, "a week" = 7. Dates are YYYY-MM-DD, resolved from today; "next week" = {TODAY + timedelta(days=7):%Y-%m-%d}.
+- "a month" = 30 days, "two months" = 60, "a week" = 7. Dates are YYYY-MM-DD, resolved from today; "next week" = {today + timedelta(days=7):%Y-%m-%d}.
 - If a required field is missing or the question is unclear, set needs_clarification true and put exactly ONE short follow-up question in question, in the owner's language. Otherwise question is null.
 - Fields a type doesn't use are null. lang is the language of the question: en, mr (Marathi) or hi (Hindi)."""
 
 
-def parse(text):
-    s = _chat([{"role": "system", "content": PARSE_PROMPT}, {"role": "user", "content": text}], SCHEMA)
+def parse(text, buyers=None, today=None):
+    """buyers/today come from the tenant's profile (engine.ledger.profile); None = the demo tenant's."""
+    s = _chat([{"role": "system", "content": _parse_prompt(buyers or BUYERS, today or TODAY)}, {"role": "user", "content": text}], SCHEMA)
     s["transcript"] = text
     return s
 

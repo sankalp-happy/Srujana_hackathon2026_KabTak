@@ -1,0 +1,68 @@
+# Multi-tenant contract
+
+Every parallel workstream builds against this file. If you need to change it, stop and say so in your report; don't change it silently.
+
+**Goal:** one onboarding page, one WhatsApp bot and one engine. Each business gets its own data, and nobody gets answers from someone else's ledger.
+
+## 1. A tenant is a folder
+
+```
+data/tenants/<tenant_id>/
+  profile.json         business details + per-tenant settings (below)
+  invoices.csv         same columns as today: invoice_no,buyer,invoice_date,taxable_inr,gst_inr,gross_inr,tds_inr,paid_date,disputed,treds_accepted
+  obligations.csv      same columns as today: date,label,kind,amount_inr   (kind in engine.ledger.KINDS, which gains "other")
+  position.json        {"bank_inr", "od_limit_inr", "od_drawn_inr", "stock_inr", "creditors_inr"}  all ints, 0 allowed (no overdraft = 0/0)
+  owner_entries.json   invoices/bills added over WhatsApp (git-ignored, same format as today's data/owner_entries.json)
+```
+
+- `tenant_id`: `[a-z0-9-]{1,40}`. Make it with `engine.tenants.new_id(name)` and resolve it with `engine.tenants.tenant_dir(tid)`.
+- The demo tenant is `mahesh-cnc`, the data that lives in `data/synthetic/` today. It moves to `data/tenants/mahesh-cnc/`.
+- Dates are `YYYY-MM-DD`. Amounts are whole rupees. An empty `paid_date` means the invoice is still open.
+
+`profile.json`:
+```json
+{
+  "tenant_id": "mahesh-cnc",
+  "business_name": "Mahesh Precision Components",
+  "buyers": ["Buyer A", "Buyer B", "CPSE", "Small customers"],
+  "today": "2026-10-25",
+  "synthetic": true,
+  "params": {}
+}
+```
+- `buyers`: the names the parser accepts as a party, in display order. It must cover every buyer in invoices.csv.
+- `today`: pinned "as of" date. `null` means the real date (`date.today()`). Only synthetic tenants pin it.
+- `params`: optional overrides of engine constants, by lowercase name: `gst_rate, tds_rate, dp_stock_margin, dp_recv_margin, dp_max_age, rho, p_qtr_slip, risk_target, order_margin_pct`. A missing key means the engine's default.
+
+## 2. Registry: `engine/tenants.py` (done, frozen)
+`tenant_dir`, `exists`, `new_id`, `new_join_code(tid) -> "123456"`, `claim(code, phone) -> tid | None`, `link(phone, tid)`, `tenant_for(phone) -> tid | None`, `first_time(msg_id) -> bool`.
+It stores state in SQLite at `data/registry.sqlite` (git-ignored). `KABTAK_DATA` overrides the data root, so tests use a temp folder.
+
+## 3. Engine API (workstream A delivers it; everyone else calls it)
+Every public entry point takes `tenant=` and defaults to `engine.tenants.DEFAULT`, so existing callers keep working.
+- `engine.answer.answer(scenario, tenant=DEFAULT) -> dict`: same result shape as today. It adds `result["tenant"]`, plus a `result["assumptions"]` entry when a buyer uses a fallback payment curve.
+- `engine.answer.undo(tenant=DEFAULT)`, `reset(tenant=DEFAULT)`, `reload(tenant=None)`. `None` clears every tenant's cache.
+- `engine.ledger.profile(tenant=DEFAULT) -> dict`: profile.json with `today` as a `date`, and `params` merged over the defaults.
+- `engine.ledger.load(tenant=DEFAULT) -> (invoices, obligations, position)`.
+- The engine must cope with: no overdraft (`od_limit_inr = 0`), no stock, any number of buyers (1 to about 20), buyers with little or no paid history, and empty obligations.
+- **Cold start:** a buyer with fewer than 5 paid invoices uses the curve pooled across the tenant's buyers. A tenant with fewer than 10 paid invoices in total uses a default curve (lognormal, median 45 days, sigma 0.4). Both are labelled in `assumptions`.
+- No module-level state may leak between tenants. Caches are keyed by tenant.
+
+## 4. Parser: `ui/llm.py` (signature done)
+`llm.parse(text, buyers=None, today=None)`. Pass `profile["buyers"]` and `profile["today"]`; `None` means Mahesh's.
+
+## 5. WhatsApp: `whatsapp/evolution_bot.py` (workstream B)
+1. Drop repeated provider message ids with `tenants.first_time(data["key"]["id"])`. Acknowledge the webhook at once and do the work in a background task.
+2. A sender whose text matches `JOIN <6 digits>` is linked with `tenants.claim()`. Reply with a welcome that names the business.
+3. An unknown sender gets the onboarding link (env `ONBOARD_URL`, default `http://localhost:8000/onboard`). They are never answered from any tenant's data.
+4. For a known sender, `tid = tenants.tenant_for(sender)`, and every engine and parser call passes that tenant.
+
+## 6. Onboarding web (workstream C)
+- `GET /onboard` serves `ui/onboard.html`. `GET /?tenant=<tid>` opens the existing dashboard for that tenant.
+- Uploads go as JSON `{filename, content_b64}`, not multipart. `.csv` and `.xlsx` are accepted.
+- The LLM only maps column headers to our schema (one call with the headers and 5 sample rows). Parsing, GST/TDS maths and validation are deterministic pandas.
+- `POST /api/onboard/preview` returns the mapping, parsed rows, row errors and the buyers found. `POST /api/onboard/commit` writes the tenant folder per §1 and returns `{tenant_id, join_code, bot_number}` (env `BOT_NUMBER`).
+- Recurring bills (wages, rent, EMI and so on: amount + day of month) are expanded into dated obligations for the next 120 days.
+
+## 7. Demo tenants (workstream D)
+`mahesh-cnc` (moved by A) and a second business with a different shape: no overdraft, different buyers, a different season. There is also a messy sample spreadsheet for the onboarding demo.

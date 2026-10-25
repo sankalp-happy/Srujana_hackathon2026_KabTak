@@ -25,3 +25,5 @@ build/
 *.safetensors
 data/raw/
 data/owner_entries.json
+data/registry.sqlite
+data/tenants/*/owner_entries.json
