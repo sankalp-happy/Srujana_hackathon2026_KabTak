@@ -1,0 +1,25 @@
+date,label,kind,amount_inr
+2026-10-31,Bar stock (supplier),supplier,499000
+2026-11-01,Rent,rent,60000
+2026-11-05,Diwali bonus,bonus,280000
+2026-11-05,Machine EMI,emi,120000
+2026-11-07,Wages,wages,340000
+2026-11-10,Power,power,170000
+2026-11-14,Bar stock (supplier),supplier,499000
+2026-11-20,GST,gst,186000
+2026-12-01,Bar stock (supplier),supplier,572000
+2026-12-01,Rent,rent,60000
+2026-12-05,Machine EMI,emi,120000
+2026-12-07,Wages,wages,340000
+2026-12-10,Power,power,150000
+2026-12-15,Advance tax,advance_tax,150000
+2026-12-15,Bar stock (supplier),supplier,572000
+2026-12-20,GST,gst,213000
+2026-12-31,Bar stock (supplier),supplier,597000
+2027-01-01,Rent,rent,60000
+2027-01-05,Machine EMI,emi,120000
+2027-01-07,Wages,wages,340000
+2027-01-10,Power,power,150000
+2027-01-14,Bar stock (supplier),supplier,597000
+2027-01-20,GST,gst,222000
+2027-01-31,Bar stock (supplier),supplier,593000
