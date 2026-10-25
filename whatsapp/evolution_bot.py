@@ -95,7 +95,8 @@ async def webhook(request: Request, event: str = ""):
     d = body["data"]
     if d["key"].get("fromMe"):  # ignore our own echoes
         return {"ok": True}
-    sender = d["key"]["remoteJid"].split("@")[0]  # ponytail: @lid JIDs aren't phone numbers; Evolution swaps in remoteJidAlt when it can
+    k = d["key"]  # newer WhatsApp sends @lid ids; the real number is in remoteJidAlt
+    sender = (k.get("remoteJidAlt") if k["remoteJid"].endswith("@lid") and k.get("remoteJidAlt") else k["remoteJid"]).split("@")[0]
     msg = d.get("message") or {}
     text = msg.get("conversation") or (msg.get("extendedTextMessage") or {}).get("text") or ""
     if "audioMessage" in msg:
@@ -132,6 +133,10 @@ if __name__ == "__main__":
         c.post("/webhook/messages-upsert", json=payload({"conversation": "हो"}))
         assert st.call_args[0][0] == "919999999999"
         assert "%" in st.call_args[0][1]
+        lid = payload({"conversation": "hi"})
+        lid["data"]["key"].update(remoteJid="123@lid", remoteJidAlt="918888888888@s.whatsapp.net")
+        c.post("/webhook", json=lid)
+        assert st.call_args[0][0] == "918888888888"
         n = st.call_count
         c.post("/webhook", json=payload({"audioMessage": {}}))
         assert st.call_count == n + 1
