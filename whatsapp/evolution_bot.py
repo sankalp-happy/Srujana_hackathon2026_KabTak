@@ -21,33 +21,22 @@ try:
 except ImportError:  # engine not merged yet
     engine_answer = lambda s: json.loads(FIXTURE.read_text())
 
-# Person A's pipeline, if merged on this branch; otherwise the placeholders below.
+# Parser and STT live in ui/llm.py (Groq parse, OpenRouter scribe-v2 -> Whisper); keys come from the env or a git-ignored .env.
+# The LLM only fills the Scenario; the engine does all the numbers.
 try:
-    from whatsapp.scenario import parse_scenario
+    from ui.llm import parse as parse_scenario, transcribe as _stt
+    transcribe = lambda audio: _stt(audio, "audio/ogg")  # WhatsApp voice notes are OGG/Opus
 except ImportError:
-    def parse_scenario(text: str) -> dict:  # TODO(Person A): replace with the real LLM parser
+    def parse_scenario(text: str) -> dict:  # offline placeholder
         return {"type": "status", "party": None, "amount_inr": None, "days": None, "pct": None,
                 "date": None, "obligation": None, "transcript": text,
                 "needs_clarification": False, "question": None}
-try:
-    from whatsapp.reply import format_reply
-except ImportError:
-    def format_reply(result: dict) -> str:  # TODO(Person A): 2-line Marathi reply
-        w = result["worst_week"]
-        return f"Week of {w['week_start']}: {round(w['p_shortfall'] * 100)}% chance of running short ({w['obligation']})."
-try:
-    from whatsapp.app import transcribe  # Sarvam STT (A4), if it exists
-except ImportError:
     transcribe = None
+from whatsapp.reply import format_reply, readback
 
 YES = {"हो", "होय", "हां", "हाँ", "yes", "y", "ok", "okay"}
 NO = {"नाही", "नको", "no", "n"}
 pending: dict[str, dict] = {}  # sender -> scenario awaiting yes/no (demo only)
-
-
-def readback(s: dict) -> str:  # TODO(Person A): Marathi read-back
-    parts = [s["type"]] + [f"{k}={s[k]}" for k in ("party", "amount_inr", "days", "pct", "date", "obligation") if s.get(k) is not None]
-    return f"{', '.join(parts)}. Correct? (हो / नाही)"
 
 
 def reply_for(sender: str, text: str) -> str:
@@ -60,7 +49,10 @@ def reply_for(sender: str, text: str) -> str:
     if sender in pending and t in NO:
         pending.pop(sender)
         return "ठीक आहे, पुन्हा सांगा."
-    s = parse_scenario(text)
+    try:
+        s = parse_scenario(text)
+    except Exception:  # LLM down / key missing
+        return "माफ करा, प्रश्न समजला नाही. कृपया पुन्हा लिहा."
     if s.get("needs_clarification"):
         return s["question"]
     pending[sender] = s
@@ -126,13 +118,20 @@ if __name__ == "__main__":
             "key": {"remoteJid": "919999999999@s.whatsapp.net", "fromMe": False, "id": "A1"},
             "pushName": "Owner", "message": msg, "messageType": "conversation"}}
 
+    order = {"type": "new_order", "party": "Bajaj", "amount_inr": 1200000, "days": 90, "pct": None, "date": None,
+             "obligation": None, "transcript": "x", "needs_clarification": False, "question": None}
     c = TestClient(app)
-    with mock.patch(f"{__name__}.send_text") as st:
-        assert c.post("/webhook", json=payload({"conversation": "Can I pay wages on the 7th?"})).status_code == 200
-        assert "Correct?" in st.call_args[0][1]
-        c.post("/webhook/messages-upsert", json=payload({"conversation": "हो"}))
+    with mock.patch(f"{__name__}.send_text") as st, mock.patch(f"{__name__}.parse_scenario", return_value=order):
+        assert c.post("/webhook", json=payload({"conversation": "Bajaj 12 lakh order, 90 days?"})).status_code == 200
+        assert "बरोबर आहे का" in st.call_args[0][1]
+        c.post("/webhook/messages-upsert", json=payload({"conversation": "हो"}))  # real engine
         assert st.call_args[0][0] == "919999999999"
-        assert "%" in st.call_args[0][1]
+        assert "%" in st.call_args[0][1] and "आठवड्यात" in st.call_args[0][1]
+        bad = dict(order, type="delay_payment", party="Nobody", days=30)
+        with mock.patch(f"{__name__}.parse_scenario", return_value=bad):
+            c.post("/webhook", json=payload({"conversation": "x"}))
+            c.post("/webhook", json=payload({"conversation": "हो"}))
+        assert "Unknown party" in st.call_args[0][1]  # engine ValueError message
         lid = payload({"conversation": "hi"})
         lid["data"]["key"].update(remoteJid="123@lid", remoteJidAlt="918888888888@s.whatsapp.net")
         c.post("/webhook", json=lid)
