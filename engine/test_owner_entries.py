@@ -1,20 +1,20 @@
 """Self-check for owner entries (real invoices and bills added over WhatsApp).
 
-Run: python3 -m engine.test_owner_entries   (also collected by pytest). Writes to a temp file, never data/.
+Run: python3 -m engine.test_owner_entries   (also collected by pytest). Works on a freshly built demo tenant in a temp folder, never data/.
 """
 import json
 import tempfile
 from datetime import timedelta
 from pathlib import Path
 
-from engine import answer as A, ledger
+from engine import answer as A, ledger, tenants
 
 T = ledger.TODAY
 
 
 def test_owner_entries():
-    real = ledger.OWNER
-    ledger.OWNER = Path(tempfile.mkdtemp()) / "owner_entries.json"
+    real = tenants.DATA_ROOT
+    tenants.DATA_ROOT = Path(tempfile.mkdtemp())   # the demo tenant is rebuilt there (seed 7), no owner entries
     A.reload()
     try:
         base = A.answer({"type": "status"})
@@ -44,7 +44,7 @@ def test_owner_entries():
               f"{bill['worst_week']['p_shortfall']}")
         A.answer({"type": "add_invoice", "party": "CPSE", "amount_inr": 100_000, "date": (T + timedelta(days=20)).isoformat()})
         assert A.answer({"type": "status"})["n_short_paths"] != base["n_short_paths"]   # later questions see the entries
-        assert A.reset() == 2 and not ledger.OWNER.exists() and same(A.answer({"type": "status"}))
+        assert A.reset() == 2 and not ledger._owner(tenants.DEFAULT).exists() and same(A.answer({"type": "status"}))
 
         # rejected before anything is written
         for bad in ({"type": "add_invoice", "party": "Bajaj", "amount_inr": 100_000, "date": T.isoformat()},
@@ -59,7 +59,7 @@ def test_owner_entries():
                 raise AssertionError(bad)
         assert ledger.owner_entries() == []
     finally:
-        ledger.OWNER = real
+        tenants.DATA_ROOT = real
         A.reload()
 
 
