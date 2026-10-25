@@ -2,34 +2,31 @@
 
 Run:   uvicorn whatsapp.evolution_bot:app --port 8001      (from repo root)
 Check: python3 -m whatsapp.evolution_bot                   (offline, send_text mocked)
-Env:   EVOLUTION_URL, EVOLUTION_INSTANCE, AUTHENTICATION_API_KEY  (see whatsapp/evolution/.env.example)
+Env:   EVOLUTION_URL, EVOLUTION_INSTANCE, AUTHENTICATION_API_KEY  (see whatsapp/evolution/.env.example), ONBOARD_URL
+Every sender is answered from their own business (engine.tenants); unknown numbers get the onboarding link.
 """
 import base64
-import json
 import re
 import os
-from pathlib import Path
+import threading
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, Request
+
+from engine import ledger, tenants
+from engine.answer import answer as engine_answer, undo as engine_undo, reset as engine_reset
 
 app = FastAPI()
 env = os.environ.get
-FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "engine_result.json"
-
-try:
-    from engine.answer import answer as engine_answer, undo as engine_undo, reset as engine_reset
-except ImportError:  # engine not merged yet
-    engine_answer = lambda s: json.loads(FIXTURE.read_text())
-    engine_undo, engine_reset = lambda: None, lambda: 0
+lock = threading.Lock()  # ponytail: one message at a time (a "yes" must not overtake its question); per-sender locks if throughput matters
 
 # Parser and STT live in ui/llm.py (Groq parse, OpenRouter scribe-v2 -> Whisper); keys come from the env or a git-ignored .env.
 # The LLM only fills the Scenario; the engine does all the numbers.
 try:
     from ui.llm import parse as parse_scenario, transcribe as _stt
-    transcribe = lambda audio: _stt(audio, "audio/ogg")  # WhatsApp voice notes are OGG/Opus
+    transcribe = lambda audio, hint=None: _stt(audio, "audio/ogg", hint)  # WhatsApp voice notes are OGG/Opus
 except ImportError:
-    def parse_scenario(text: str) -> dict:  # offline placeholder
+    def parse_scenario(text: str, buyers=None, today=None) -> dict:  # offline placeholder
         return {"type": "status", "party": None, "amount_inr": None, "days": None, "pct": None,
                 "date": None, "obligation": None, "transcript": text,
                 "needs_clarification": False, "question": None}
@@ -42,16 +39,37 @@ except ImportError:
     supported = None
 YES = {"हो", "होय", "हां", "हाँ", "yes", "y", "ok", "okay"}
 NO = {"नाही", "नको", "no", "n"}
+JOIN = re.compile(r"\bjoin\b\W*((?:\d\s?){6})(?!\d)", re.I)  # "JOIN 123456", "join 123 456", "Join 1 2 3 4 5 6." (voice)
 asked: dict[str, tuple[str, str]] = {}  # sender -> (original text, our clarification question)
 last_result: dict[str, dict] = {}  # sender -> engine result, charted after the reply
 pending: dict[str, dict] = {}  # sender -> scenario awaiting yes/no (demo only)
 
 
+def join(sender: str, code: str) -> str:
+    tid = tenants.claim(code, sender)
+    if not tid:
+        return "That code isn't valid, or it was already used. Check the code on your setup page and send *JOIN <6-digit code>* again."
+    for d in (asked, pending, last_result):  # a number that moves business starts clean
+        d.pop(sender, None)
+    prof = ledger.profile(tid)
+    b = prof["buyers"] or ["your buyer"]
+    demo = "\n\n_Demo data is synthetic._" if prof.get("synthetic") else ""
+    return (f"Welcome, *{prof['business_name']}*! This number is now linked. Try:\n"
+            f"• What if {b[0]} pays 30 days late?\n• Can I take a 5 lakh order from {b[-1]} on 60-day terms?\n"
+            f"Type or send a voice note.{demo}")
+
+
 def reply_for(sender: str, text: str) -> str:
+    if m := JOIN.search(text):
+        return join(sender, re.sub(r"\D", "", m.group(1)))
+    if not (tid := tenants.tenant_for(sender)):  # never answer a stranger from anyone's data
+        return (f"Hi! I don't know this number yet. Set up your business at {env('ONBOARD_URL', 'http://localhost:8000/onboard')}, "
+                "then send *JOIN <6-digit code>* here with the code the page gives you.")
+    prof = ledger.profile(tid)
     words = re.findall(r"\w+", text.lower())  # voice transcripts come with punctuation ("Yes.")
     t = words[0] if words else ""
     if t == "undo":  # owner entries: undo the last one, or reset to the base data (confirmed first)
-        e = engine_undo()
+        e = engine_undo(tenant=tid)
         return f"Removed. {entry_text(e)}" if e else "Nothing to undo."
     if t == "reset":
         pending[sender] = {"type": "reset"}
@@ -59,9 +77,9 @@ def reply_for(sender: str, text: str) -> str:
     if sender in pending and t in YES:
         if pending[sender]["type"] == "reset":
             pending.pop(sender)
-            return f"Back to the base data: removed {engine_reset()} added entries."
+            return f"Back to the base data: removed {engine_reset(tenant=tid)} added entries."
         try:
-            r = engine_answer(pending.pop(sender))
+            r = engine_answer(pending.pop(sender), tenant=tid)
         except ValueError as e:
             return str(e)
         last_result[sender] = r
@@ -73,7 +91,7 @@ def reply_for(sender: str, text: str) -> str:
         orig, q = asked.pop(sender)
         text = f"{orig}\nQuestion asked: {q}\nOwner's answer: {text}"
     try:
-        s = parse_scenario(text)
+        s = parse_scenario(text, buyers=prof["buyers"], today=prof["today"])
     except Exception:  # LLM down / key missing
         return "Sorry, I couldn't understand that. Please rephrase."
     if s.get("needs_clarification"):
@@ -81,9 +99,10 @@ def reply_for(sender: str, text: str) -> str:
         return s["question"]
     if supported is not None and s["type"] not in supported:  # don't ask to confirm what the engine will refuse
         return ("I can't model that yet.\nI can answer: *status*, *new order*, *buyer pays late*, *one-off expense*, "
-                "*payment from a buyer*, or save an *invoice* / *bill* you tell me about.")
+                "*payment from a buyer*, or save an *invoice* / *bill* you tell me about.\n"
+                f"Buyers I know: {', '.join(prof['buyers'])}.")
     pending[sender] = s
-    return readback(s)
+    return readback(s, prof["params"].get("gst_rate", 0.18))
 
 
 def _evo(path: str, body: dict) -> httpx.Response:
@@ -111,120 +130,188 @@ def audio_bytes(data: dict) -> bytes:
     return base64.b64decode(b64)
 
 
+def handle(d: dict, sender: str) -> None:
+    """Parse, run the engine and reply. Runs after the webhook has been acked."""
+    msg = d.get("message") or {}
+    text = msg.get("conversation") or (msg.get("extendedTextMessage") or {}).get("text") or ""
+    heard = "audioMessage" in msg
+    with lock:
+        try:
+            if heard:
+                if transcribe is None:
+                    text, out = "", "Voice notes aren't wired yet (STT pending). Please type your question."
+                else:
+                    try:  # the tenant's buyer names bias speech-to-text
+                        tid = tenants.tenant_for(sender)
+                        text = transcribe(audio_bytes(d), ", ".join(ledger.profile(tid)["buyers"]) if tid else None)
+                    except Exception:
+                        text, out = "", "Couldn't read the voice note. Please type your question."
+            if text:
+                out = reply_for(sender, text)
+                if heard:
+                    out = f'_Heard: "{text}"_\n\n{out}'
+            elif not heard:
+                return
+            send_text(sender, out)
+            if sender in last_result:
+                try:
+                    send_chart(sender, last_result.pop(sender))
+                except Exception as e:  # chart is a bonus; the text reply already went out
+                    print("chart failed:", e)
+        except Exception as e:  # nobody retries a background task; don't leave a half-handled message
+            print("handle failed:", e)
+
+
 @app.post("/webhook")
 @app.post("/webhook/{event:path}")  # also accepts webhook-by-events URLs, e.g. /webhook/messages-upsert
-async def webhook(request: Request, event: str = ""):
+async def webhook(request: Request, tasks: BackgroundTasks, event: str = ""):
     body = await request.json()
     if str(body.get("event", "")).lower().replace("_", ".") != "messages.upsert":
         return {"ok": True}
     d = body["data"]
-    if d["key"].get("fromMe"):  # ignore our own echoes
+    k = d["key"]
+    if k.get("fromMe"):  # ignore our own echoes
         return {"ok": True}
-    k = d["key"]  # newer WhatsApp sends @lid ids; the real number is in remoteJidAlt
+    if not tenants.first_time(k["id"]):  # Evolution retries slow webhooks; a retry must never run (or save) twice
+        return {"ok": True, "duplicate": True}
+    # newer WhatsApp sends @lid ids; the real number is in remoteJidAlt
     sender = (k.get("remoteJidAlt") if k["remoteJid"].endswith("@lid") and k.get("remoteJidAlt") else k["remoteJid"]).split("@")[0]
-    msg = d.get("message") or {}
-    text = msg.get("conversation") or (msg.get("extendedTextMessage") or {}).get("text") or ""
-    heard = "audioMessage" in msg
-    if "audioMessage" in msg:
-        if transcribe is None:
-            text = ""
-            out = "Voice notes aren't wired yet (STT pending). Please type your question."
-        else:
-            try:
-                text = transcribe(audio_bytes(d))
-            except Exception:
-                text, out = "", "Couldn't read the voice note. Please type your question."
-    if text:
-        out = reply_for(sender, text)
-        if heard:
-            out = f'_Heard: "{text}"_\n\n{out}'
-    elif "audioMessage" not in msg:
-        return {"ok": True}
-    send_text(sender, out)
-    if sender in last_result:
-        try:
-            send_chart(sender, last_result.pop(sender))
-        except Exception as e:  # chart is a bonus; the text reply already went out
-            print("chart failed:", e)
-    return {"ok": True}  # always ack so Evolution doesn't retry
+    tasks.add_task(handle, d, sender)
+    return {"ok": True}  # ack at once; the LLM and engine run in the background
 
 
 if __name__ == "__main__":
+    import itertools
+    import json
+    import tempfile
+    from datetime import date
+    from pathlib import Path
     from unittest import mock
 
     from fastapi.testclient import TestClient
 
-    def payload(msg):
+    ids = itertools.count(1)
+
+    def payload(msg, sender="919999999999", mid=None):
         return {"event": "messages.upsert", "instance": "kabtak", "data": {
-            "key": {"remoteJid": "919999999999@s.whatsapp.net", "fromMe": False, "id": "A1"},
+            "key": {"remoteJid": f"{sender}@s.whatsapp.net", "fromMe": False, "id": mid or f"M{next(ids)}"},
             "pushName": "Owner", "message": msg, "messageType": "conversation"}}
 
     order = {"type": "new_order", "party": "Bajaj", "amount_inr": 1200000, "days": 90, "pct": None, "date": None,
              "obligation": None, "transcript": "x", "needs_clarification": False, "question": None}
+    result = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "engine_result.json").read_text())
+    profiles = {  # two businesses, mocked: the engine is workstream A's
+        "biz-a": {"business_name": "Mahesh Precision Components", "buyers": ["Buyer A", "Buyer B", "CPSE"], "today": date(2026, 10, 25),
+                  "synthetic": True, "params": {}},
+        "biz-b": {"business_name": "Om Textiles", "buyers": ["Ravi Mills", "Sai Traders"], "today": date(2026, 11, 1),
+                  "synthetic": False, "params": {"gst_rate": 0.05}}}
+    A, B, X = "919000000001", "919000000002", "919000000003"   # owner of biz-a, owner of biz-b, stranger
+    onboard = "http://localhost:8000/onboard"
+
+    def late(text, buyers=None, today=None):  # what the parser would return for "<first buyer> pays late"
+        return dict(order, type="delay_payment", party=buyers[0], amount_inr=None, days=30)
+
     c = TestClient(app)
-    with mock.patch(f"{__name__}.send_text") as st, mock.patch(f"{__name__}.parse_scenario", return_value=order):
-        assert c.post("/webhook", json=payload({"conversation": "Bajaj 12 lakh order, 90 days?"})).status_code == 200
-        assert "Please confirm" in st.call_args[0][1]
-        with mock.patch(f"{__name__}.send_chart") as sc:
-            c.post("/webhook/messages-upsert", json=payload({"conversation": "Yes."}))  # real engine; "Yes." as a transcript would give
-        assert sc.call_args[0][0] == "919999999999" and "fan" in sc.call_args[0][1]
-        assert st.call_args[0][0] == "919999999999"
-        assert "%" in st.call_args[0][1] and "Riskiest week" in st.call_args[0][1]
-        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, needs_clarification=True, question="Which buyer?")) as ps:
-            c.post("/webhook", json=payload({"conversation": "what if he pays late?"}))
-            assert st.call_args[0][1] == "Which buyer?"
-        with mock.patch(f"{__name__}.parse_scenario", return_value=order) as ps:
-            c.post("/webhook", json=payload({"conversation": "Buyer A"}))
-            assert "Which buyer?" in ps.call_args[0][0] and "what if he pays late?" in ps.call_args[0][0]
+    with tempfile.TemporaryDirectory() as tmp, mock.patch.object(tenants, "DATA_ROOT", Path(tmp)), \
+            mock.patch.object(ledger, "profile", side_effect=lambda t: profiles[t], create=True), \
+            mock.patch(f"{__name__}.send_text") as st, mock.patch(f"{__name__}.send_chart") as sc, \
+            mock.patch(f"{__name__}.engine_answer", return_value=result) as ea, \
+            mock.patch(f"{__name__}.engine_undo") as eu, mock.patch(f"{__name__}.engine_reset", return_value=2) as er, \
+            mock.patch(f"{__name__}.parse_scenario", side_effect=late) as ps:
+        def say(text, sender, mid=None):
+            assert c.post("/webhook", json=payload({"conversation": text}, sender, mid)).status_code == 200
+            assert st.call_args[0][0] == sender
+            return st.call_args[0][1]
+
+        # (a) a stranger gets the onboarding link; no engine, no parser, no demo-tenant fallback
+        for t in ("what is my status?", "reset", "undo", "yes", "JOIN 12345"):
+            r = say(t, X)
+            assert onboard in r and "JOIN" in r, r
+        with mock.patch.dict(os.environ, {"ONBOARD_URL": "https://kabtak.example/onboard"}):
+            assert "https://kabtak.example/onboard" in say("hi", X)
+        assert not (ps.called or ea.called or eu.called or er.called) and tenants.tenant_for(X) is None
+
+        # (b) JOIN links the number; a wrong code is refused; a code works once
+        ca, cb = tenants.new_join_code("biz-a"), tenants.new_join_code("biz-b")
+        wrong = next(f"{n:06d}" for n in itertools.count() if f"{n:06d}" not in (ca, cb))
+        assert "isn't valid" in say(f"JOIN {wrong}", X) and tenants.tenant_for(X) is None
+        r = say(f"join {ca[:3]} {ca[3:]}", A)  # case and spaces are fine
+        assert tenants.tenant_for(A) == "biz-a" and "Mahesh Precision Components" in r and "Buyer A pays 30 days late" in r and "synthetic" in r
+        assert "isn't valid" in say(f"JOIN {ca}", X) and tenants.tenant_for(X) is None  # already used
+        with mock.patch(f"{__name__}.transcribe", return_value=f"Join {' '.join(cb)}.") as tr, \
+                mock.patch(f"{__name__}.audio_bytes", return_value=b"ogg"):  # JOIN inside a voice note
+            assert c.post("/webhook", json=payload({"audioMessage": {}}, B)).status_code == 200
+            assert tr.call_args[0][1] is None  # a stranger has no buyers to hint
+        assert tenants.tenant_for(B) == "biz-b" and "Om Textiles" in st.call_args[0][1] and "Ravi Mills" in st.call_args[0][1]
+        assert not (ps.called or ea.called)
+
+        # (c) each sender hits the engine with their own tenant and the parser with their own buyers, even interleaved
+        say("Buyer A pays late?", A)
+        assert ps.call_args.kwargs == {"buyers": profiles["biz-a"]["buyers"], "today": date(2026, 10, 25)}
+        r = say("Ravi Mills pays late?", B)
+        assert ps.call_args.kwargs == {"buyers": profiles["biz-b"]["buyers"], "today": date(2026, 11, 1)} and "Ravi Mills" in r
+        assert not ea.called  # (e) nothing runs before the yes
+        say("Yes.", A)
+        assert ea.call_args.args[0]["party"] == "Buyer A" and ea.call_args.kwargs == {"tenant": "biz-a"}
+        say("yes", B)
+        assert ea.call_args.args[0]["party"] == "Ravi Mills" and ea.call_args.kwargs == {"tenant": "biz-b"} and ea.call_count == 2
+        assert [x[0][0] for x in sc.call_args_list] == [A, B]  # each gets their own chart
+        eu.return_value = {"table": "obligations", "row": {"label": "Repair", "amount_inr": 200000, "date": "2026-11-10"}}
+        assert "Removed" in say("Undo", B) and eu.call_args.kwargs == {"tenant": "biz-b"}
+        say("reset", B)
+        assert not er.called  # reset waits for yes
+        assert "removed 2" in say("yes", B) and er.call_args.kwargs == {"tenant": "biz-b"}
+        inv = dict(order, type="add_invoice", party="Sai Traders", amount_inr=200000, days=None, date="2026-11-02")
+        with mock.patch(f"{__name__}.parse_scenario", return_value=inv):
+            assert "+ 5% GST" in say("add invoice Sai Traders 2 lakh", B)  # the tenant's own GST rate
+        pending.pop(B)
+        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="sales_drop", party=None, pct=20, days=30)):
+            r = say("what if sales drop 20% for a month", B)
+        assert "can't model" in r and "Ravi Mills, Sai Traders" in r and "Buyer A" not in r  # help names this tenant's buyers
+
+        # (d) the same message id twice is processed once, so a retried "yes" never saves an invoice twice
+        n = (ps.call_count, st.call_count)
+        say("Buyer A pays late?", A, "RETRY1")
+        say("Buyer A pays late?", A, "RETRY1")
+        assert (ps.call_count, st.call_count) == (n[0] + 1, n[1] + 1)
+        n = ea.call_count
+        say("yes", A, "RETRY2")
+        say("yes", A, "RETRY2")
+        assert ea.call_count == n + 1
+
+        # (e) clarification, @lid, voice, engine errors
+        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, needs_clarification=True, question="Which buyer?")):
+            assert say("what if he pays late?", A) == "Which buyer?"
+        with mock.patch(f"{__name__}.parse_scenario", return_value=order) as p2:
+            say("Buyer B", A)
+            assert "Which buyer?" in p2.call_args[0][0] and "what if he pays late?" in p2.call_args[0][0]
         pending.clear()
-        n = st.call_count
-        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
-            c.post("/webhook", json=payload({"conversation": "what is the status"}))
-        assert "Please confirm" in st.call_args[0][1]  # even status is confirmed first
-        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="sales_drop", party=None, amount_inr=None, pct=20, days=30)):
-            c.post("/webhook", json=payload({"conversation": "what if sales drop 20% for a month"}))
-        assert "can't model" in st.call_args[0][1]
         pay = dict(order, type="payment_received", party="Buyer A", amount_inr=2000000, days=None, date="2026-11-03")
-        with mock.patch(f"{__name__}.parse_scenario", return_value=pay), mock.patch(f"{__name__}.send_chart"):
-            c.post("/webhook", json=payload({"conversation": "Buyer A pays 20L on 3 Nov"}))
-            assert "Incoming payment" in st.call_args[0][1]
-            c.post("/webhook", json=payload({"conversation": "yes"}))
-            assert "vs current forecast" in st.call_args[0][1]
-        for t in ("add_invoice", "add_obligation"):  # entries pass the supported-type gate
-            assert t in supported
-        from whatsapp.reply import readback as rb
-        pr = rb(dict(order, type="payment_received", party="Buyer A", amount_inr=2000000, days=None, date="2026-11-03"))
-        assert "Incoming payment" in pr and "Buyer: *Buyer A*" in pr and "₹20 L (₹20,00,000)" in pr and "3 Nov 2026" in pr
-        bad = dict(order, type="delay_payment", party="Nobody", days=30)
-        with mock.patch(f"{__name__}.parse_scenario", return_value=bad):
-            c.post("/webhook", json=payload({"conversation": "x"}))
-            c.post("/webhook", json=payload({"conversation": "yes"}))
-        assert "Unknown party" in st.call_args[0][1]  # engine ValueError message
-        lid = payload({"conversation": "hi"})
-        lid["data"]["key"].update(remoteJid="123@lid", remoteJidAlt="918888888888@s.whatsapp.net")
-        c.post("/webhook", json=lid)
-        assert st.call_args[0][0] == "918888888888"
+        with mock.patch(f"{__name__}.parse_scenario", return_value=pay):
+            assert "Incoming payment" in say("Buyer A pays 20L on 3 Nov", A)
+            ea.return_value = dict(result, scenario={**result["scenario"], "type": "payment_received"},
+                                   baseline={"worst_week": {"p_shortfall": 0.02}})
+            assert "vs current forecast" in say("yes", A)
+        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
+            assert "Please confirm" in say("what is the status", A)  # even status is confirmed first
+        pending.clear()
+        ea.side_effect = ValueError("Unknown party: Nobody")
+        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="delay_payment", party="Nobody", days=30)):
+            say("x", A)
+            assert "Unknown party" in say("yes", A)
+        ea.side_effect = None
+        lid = payload({"conversation": "hi"}, "123")
+        lid["data"]["key"].update(remoteJid="123@lid", remoteJidAlt=f"{B}@s.whatsapp.net")
+        assert c.post("/webhook", json=lid).status_code == 200 and st.call_args[0][0] == B and ps.call_args.kwargs["buyers"][0] == "Ravi Mills"
+        with mock.patch(f"{__name__}.transcribe", return_value="Ravi Mills pays late") as tr, mock.patch(f"{__name__}.audio_bytes", return_value=b"ogg"):
+            c.post("/webhook", json=payload({"audioMessage": {}}, B))
+            assert tr.call_args[0][1] == "Ravi Mills, Sai Traders"  # the tenant's buyers bias speech-to-text
+            assert st.call_args[0][1].startswith('_Heard: "Ravi Mills pays late"_') and "Please confirm" in st.call_args[0][1]
         n = st.call_count
-        c.post("/webhook", json=payload({"audioMessage": {}}))
-        assert st.call_count == n + 1
-        import tempfile
-        from engine import ledger
-        add = dict(order, type="add_obligation", party="Machine repair", obligation="supplier", amount_inr=200000,
-                   days=None, date="2026-11-10")
-        with mock.patch.object(ledger, "OWNER", Path(tempfile.mkdtemp()) / "e.json"), \
-                mock.patch(f"{__name__}.parse_scenario", return_value=add), mock.patch(f"{__name__}.send_chart"):
-            c.post("/webhook", json=payload({"conversation": "2 lakh machine repair bill due 10 Nov, add it"}))
-            assert "Save this?" in st.call_args[0][1] and not ledger.OWNER.exists()  # nothing saved before yes
-            c.post("/webhook", json=payload({"conversation": "Yes."}))
-            assert "Saved" in st.call_args[0][1] and "→" in st.call_args[0][1] and len(ledger.owner_entries()) == 1
-            c.post("/webhook", json=payload({"conversation": "Undo"}))
-            assert "Removed" in st.call_args[0][1] and ledger.owner_entries() == []
-            c.post("/webhook", json=payload({"conversation": "add it"}))
-            c.post("/webhook", json=payload({"conversation": "yes"}))
-            c.post("/webhook", json=payload({"conversation": "reset"}))
-            assert len(ledger.owner_entries()) == 1  # reset waits for yes
-            c.post("/webhook", json=payload({"conversation": "yes"}))
-            assert "removed 1" in st.call_args[0][1] and ledger.owner_entries() == []
-        from engine.answer import reload
-        reload()
+        with mock.patch(f"{__name__}.audio_bytes", side_effect=RuntimeError):
+            c.post("/webhook", json=payload({"audioMessage": {}}, A))
+        assert st.call_count == n + 1 and "Couldn't read" in st.call_args[0][1]
+        n = st.call_count
+        c.post("/webhook", json=payload({"stickerMessage": {}}, A))  # nothing to answer
+        assert st.call_count == n
     print("ok")

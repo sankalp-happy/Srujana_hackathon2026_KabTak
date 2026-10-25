@@ -44,11 +44,11 @@ FIELDS = {
 }
 
 
-def readback(s: dict) -> str:
+def readback(s: dict, gst_rate: float = 0.18) -> str:
     t, p = s["type"], s.get("party")
     on = lambda w: f"\n• {w}: *{_d(s['date'])}*" if s.get("date") else ""
     if t in ("add_invoice", "add_obligation"):
-        what = (f"Add invoice\n• Buyer: *{p}*\n• Amount: *{_inr(s['amount_inr'] or 0)}* + 18% GST{on('Dated')}"
+        what = (f"Add invoice\n• Buyer: *{p}*\n• Amount: *{_inr(s['amount_inr'] or 0)}* + {gst_rate * 100:g}% GST{on('Dated')}"
                 if t == "add_invoice" else
                 f"Add bill\n• *{p or s.get('obligation')}*: *{_inr(s['amount_inr'] or 0)}*{on('Due')}")
         return f"Save this?\n\n{what}\n\nReply *yes* or *no* (text or voice). Later, *undo* removes it."
@@ -101,7 +101,8 @@ if __name__ == "__main__":
     for t in FIELDS:
         assert "• " in readback({"type": t, "party": "Buyer A", "amount_inr": 2000000, "days": 5, "pct": 20, "date": "2026-11-03", "obligation": "emi"}) or t == "status"
     rb = readback({"type": "add_invoice", "party": "Buyer A", "amount_inr": 200000, "date": "2026-10-25"})
-    assert "Save this?" in rb and "₹2 L" in rb and "25 Oct" in rb
+    assert "Save this?" in rb and "₹2 L" in rb and "25 Oct" in rb and "+ 18% GST" in rb
+    assert "+ 5% GST" in readback({"type": "add_invoice", "party": "Om Traders", "amount_inr": 200000, "date": None}, 0.05)
     assert "Save this?" in readback({"type": "add_obligation", "party": None, "obligation": "supplier", "amount_inr": 200000, "date": None})
     inv = {"table": "invoices", "row": {"invoice_no": "OWN-0001", "buyer": "Buyer A", "taxable_inr": 200000,
                                         "gross_inr": 236000, "invoice_date": "2026-10-25"}}
