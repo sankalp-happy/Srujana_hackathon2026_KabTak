@@ -122,13 +122,13 @@ type, its required fields, and what days means:
 - delay_payment: party, days = extra days late. "What if Buyer A pays a month late?"
 - expense_shock: amount_inr, date. Any one-off money going out: a repair, a purchase, a cash withdrawal, the owner taking money out, a loan repayment. "The spindle motor needs 2 lakh next week", "Can I withdraw 12 L after 5 days?". The purpose doesn't matter; never ask for it.
 - sales_drop: pct, days = how long. supplier_terms: party, days = new terms. schedule_change: obligation, date.
-- payment_received: party, amount_inr, date.
+- payment_received: party, amount_inr = the cash the buyer pays, date = when (after today). A what-if that saves nothing: "Buyer A is paying 20 L on 3 Nov", "what if CPSE clears 5 lakh next week?".
 - add_invoice: party, amount_inr = value before GST, date = invoice date (may be past). The owner tells you to record a real invoice they raised: "Add invoice: Buyer A, 2 lakh plus GST, dated today", "I billed CPSE 3 lakh on 20 Oct, note it".
 - add_obligation: amount_inr, date = due date, obligation = the closest kind ({", ".join(KINDS)}; bills from suppliers, repairs and other vendors are supplier), party = a short label for the bill in the owner's words (e.g. "Machine repair", "Tata Steel"). The owner tells you to record a real bill they must pay: "I have a 2 lakh machine repair bill due 10 Nov, add it".
 - add_* SAVE data; every other type is a what-if that saves nothing. Use add_* only when the owner states a real invoice or bill and asks to add, record, note, save or enter it. "Can I spend / what if / should I" is a what-if (expense_shock, new_order). A bare amount and date with no ask ("Machine repair 2 lakh on 10 Nov") is unclear: set needs_clarification and ask "Should I save this as a real bill, or is it a what-if?" (or "real invoice").
 
 Rules:
-- Known buyers: {", ".join(BUYERS)}. For delay_payment and add_invoice the party must be one of these, written exactly so; if the owner names someone else, ask which of these buyers they mean, listing all four. For new_order use the name as said (e.g. "Bajaj"), or "New buyer" if unnamed.
+- Known buyers: {", ".join(BUYERS)}. For delay_payment, payment_received and add_invoice the party must be one of these, written exactly so; if the owner names someone else, ask which of these buyers they mean, listing all four. For new_order use the name as said (e.g. "Bajaj"), or "New buyer" if unnamed.
 - amount_inr is whole rupees: 1 lakh = 100000, 1 crore = 10000000, 1 hazaar = 1000. "12 L" = 1200000. Read Devanagari digits (०-९) and Marathi/Hindi number words.
 - "a month" = 30 days, "two months" = 60, "a week" = 7. Dates are YYYY-MM-DD, resolved from today; "next week" = {TODAY + timedelta(days=7):%Y-%m-%d}.
 - If a required field is missing or the question is unclear, set needs_clarification true and put exactly ONE short follow-up question in question, in the owner's language. Otherwise question is null.

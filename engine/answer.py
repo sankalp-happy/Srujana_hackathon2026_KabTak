@@ -10,6 +10,7 @@ KEYS = ["type", "party", "amount_inr", "days", "pct", "date", "obligation", "tra
         "needs_clarification", "question"]
 SUPPORTED = {"status": [], "new_order": ["party", "amount_inr", "days"],
              "delay_payment": ["party", "days"], "expense_shock": ["amount_inr", "date"],
+             "payment_received": ["party", "amount_inr", "date"],
              "add_invoice": ["party", "amount_inr", "date"], "add_obligation": ["amount_inr", "date", "obligation"]}
 KNOWN = {"status", "new_order", "delay_payment", "expense_shock", "sales_drop", "supplier_terms",
          "schedule_change", "payment_received", "add_invoice", "add_obligation"}
@@ -33,7 +34,7 @@ def _check(s):
         raise ValueError("amount_inr must be a positive whole number of rupees")
     if "days" in SUPPORTED[t] and (isinstance(d, bool) or not isinstance(d, int) or not 0 <= d <= 365):
         raise ValueError("days must be a whole number from 0 to 365")
-    if t in ("delay_payment", "add_invoice") and s["party"] not in ledger.BUYERS:
+    if t in ("delay_payment", "add_invoice", "payment_received") and s["party"] not in ledger.BUYERS:
         raise ValueError(f"Unknown party {s['party']!r}; expected one of {', '.join(ledger.BUYERS)}")
     if t == "add_obligation" and s["obligation"] not in ledger.KINDS:
         raise ValueError(f"Unknown bill kind {s['obligation']!r}; expected one of {', '.join(ledger.KINDS)}")
@@ -175,17 +176,23 @@ def answer(scenario):
         entry = _save(scenario)
         return {**answer({"type": "status"}), "scenario": {k: scenario.get(k) for k in KEYS},
                 "baseline": before, "entry": entry}
-    order = delay = extra = None
+    order = delay = extra = received = None
     if t == "new_order":
         order = {"party": scenario["party"], "amount_inr": scenario["amount_inr"],
                  "terms_days": scenario["days"], "advance_pct": 0}
     elif t == "delay_payment":
         delay = {scenario["party"]: scenario["days"]}
+    elif t == "payment_received":
+        d = _date(scenario, back=365)
+        if d <= ledger.TODAY:
+            raise ValueError("I can only model a payment expected after today; recording money already received "
+                             "isn't supported yet.")
+        received = {scenario["party"]: (scenario["amount_inr"], d)}
     elif t == "expense_shock":
         extra = [{"date": _date(scenario), "label": "Unplanned expense", "kind": "expense",
                   "amount_inr": scenario["amount_inr"]}]
 
-    sim = sm.simulate(extra_delay=delay, order=order, extra_obligations=extra)
+    sim = sm.simulate(extra_delay=delay, order=order, extra_obligations=extra, received=received)
     liq = sim["liquidity"]
     p10, p50, p90 = np.percentile(liq, [10, 50, 90], axis=0)
     obligations = [{"date": o["date"].isoformat(), "label": o["label"], "amount_inr": int(o["amount_inr"])}
@@ -285,6 +292,17 @@ if __name__ == "__main__":
         assert all(np.all(np.diff(c["p_shortfall"]) >= -0.02) for c in r["kab_tak_curves"]), "curve not monotone"
         assert all(len(a["due_by_week_inr"]) == len(a["expected_by_week_inr"]) == 13 for a in r["arrivals"])
     assert st["baseline"] is None and hero["baseline"]["worst_week"] == st["worst_week"]
+    pay = {"type": "payment_received", "party": "Buyer A", "amount_inr": 2_000_000, "date": "2026-11-03"}
+    assert answer(pay)["n_short_paths"] < st["n_short_paths"]   # cash arrives early: less risk
+    assert answer({**pay, "date": "2027-01-15"})["n_short_paths"] > st["n_short_paths"]   # held back: more risk
+    assert answer({"type": "status"}) == st   # the promised payment didn't leak into the cached ledger
+    for bad in ({**pay, "amount_inr": 90_000_000}, {**pay, "date": "2026-10-25"}):
+        try:
+            answer(bad)
+        except ValueError as e:
+            print("ValueError:", e)
+        else:
+            raise AssertionError(bad)
     print("status worst week:", st["worst_week"], "kab_tak:", st["kab_tak"])
     print("hero worst week:", hero["worst_week"])
     print("hero kab_tak:", hero["kab_tak"])

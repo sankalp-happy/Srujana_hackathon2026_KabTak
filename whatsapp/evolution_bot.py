@@ -81,7 +81,7 @@ def reply_for(sender: str, text: str) -> str:
         return s["question"]
     if supported is not None and s["type"] not in supported:  # don't ask to confirm what the engine will refuse
         return ("I can't model that yet.\nI can answer: *status*, *new order*, *buyer pays late*, *one-off expense*, "
-                "or save an *invoice* / *bill* you tell me about.")
+                "*payment from a buyer*, or save an *invoice* / *bill* you tell me about.")
     pending[sender] = s
     return readback(s)
 
@@ -181,9 +181,17 @@ if __name__ == "__main__":
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
             c.post("/webhook", json=payload({"conversation": "what is the status"}))
         assert "Please confirm" in st.call_args[0][1]  # even status is confirmed first
-        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="payment_received", party="Buyer A", amount_inr=2000000, date="2026-11-03")):
-            c.post("/webhook", json=payload({"conversation": "Buyer A pays 20L on 3 Nov"}))
+        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="sales_drop", party=None, amount_inr=None, pct=20, days=30)):
+            c.post("/webhook", json=payload({"conversation": "what if sales drop 20% for a month"}))
         assert "can't model" in st.call_args[0][1]
+        pay = dict(order, type="payment_received", party="Buyer A", amount_inr=2000000, days=None, date="2026-11-03")
+        with mock.patch(f"{__name__}.parse_scenario", return_value=pay), mock.patch(f"{__name__}.send_chart"):
+            c.post("/webhook", json=payload({"conversation": "Buyer A pays 20L on 3 Nov"}))
+            assert "Incoming payment" in st.call_args[0][1]
+            c.post("/webhook", json=payload({"conversation": "yes"}))
+            assert "vs current forecast" in st.call_args[0][1]
+        for t in ("add_invoice", "add_obligation"):  # entries pass the supported-type gate
+            assert t in supported
         from whatsapp.reply import readback as rb
         pr = rb(dict(order, type="payment_received", party="Buyer A", amount_inr=2000000, days=None, date="2026-11-03"))
         assert "Incoming payment" in pr and "Buyer: *Buyer A*" in pr and "₹20 L (₹20,00,000)" in pr and "3 Nov 2026" in pr

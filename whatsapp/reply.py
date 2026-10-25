@@ -77,6 +77,9 @@ def format_reply(r: dict) -> str:
     elif s["type"] == "delay_payment":
         k = next((k for k in r.get("kab_tak") or [] if k["buyer"] == s["party"]), None)
         line2 = f"{s['party']} can pay at most *{k['max_delay_days']} days* late before risk rises." if k else ""
+    elif s["type"] == "payment_received" and r.get("baseline"):
+        line2 = (f"Riskiest-week risk vs current forecast: {round(r['baseline']['worst_week']['p_shortfall'] * 100)}% → "
+                 f"*{round(w['p_shortfall'] * 100)}%*\n_Its oldest open invoices are paid on that day; nothing is saved._")
     elif r.get("plan"):
         pl = r["plan"]
         line2 = f"Fix costs *{_inr(pl['total_cost_inr'])}*; risk falls to *{round(pl['p_shortfall_after'] * 100)}%*."
@@ -102,5 +105,7 @@ if __name__ == "__main__":
     assert "Save this?" in readback({"type": "add_obligation", "party": None, "obligation": "supplier", "amount_inr": 200000, "date": None})
     inv = {"table": "invoices", "row": {"invoice_no": "OWN-0001", "buyer": "Buyer A", "taxable_inr": 200000,
                                         "gross_inr": 236000, "invoice_date": "2026-10-25"}}
+    pr = dict(r, scenario={**r["scenario"], "type": "payment_received"}, baseline={"worst_week": {"p_shortfall": 0.02}})
+    assert "2% → *77%*" in format_reply(pr)
     assert "₹2.36 L" in entry_text(inv) and _inr(4_612_345) == "₹46.12 L"
     print("ok")
