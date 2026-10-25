@@ -12,13 +12,18 @@ reduce it; below the cap, receivables ageing past 90 days cut DP (the double hit
 nets sundry creditors (unpaid bar-stock bills) off stock before margin: see `drawing_power`.
 
 Run `python -m engine.ledger` to rebuild the files and run the self-check.
+
+Multi-tenant: a business is a folder, data/tenants/<tenant_id>/ (docs/planning/multi-tenant-contract.md). This
+module's constants are the demo tenant's (mahesh-cnc) and the engine defaults; `profile(tenant)["params"]`
+overrides them per business, and every function here takes `tenant=`.
 """
 from datetime import date, timedelta
-from pathlib import Path
 import json
 
 import numpy as np
 import pandas as pd
+
+from engine.tenants import DEFAULT, tenant_dir
 
 TODAY = date(2026, 10, 25)
 SEED = 7
@@ -28,20 +33,28 @@ TDS_RATE = 0.02          # s.194C: buyers deduct 2% of the taxable value
 MATERIAL_SHARE = 0.45    # bar stock as a share of revenue
 ORDER_MARGIN_PCT = 0.09  # contribution margin on a new order
 BUYERS = ["Buyer A", "Buyer B", "CPSE", "Small customers"]
-KINDS = ["wages", "emi", "gst", "rent", "power", "advance_tax", "bonus", "supplier"]   # obligation kinds
+KINDS = ["wages", "emi", "gst", "rent", "power", "advance_tax", "bonus", "supplier", "other"]   # obligation kinds
 DP_STOCK_MARGIN = 0.25   # bank keeps 25% back on stock...
 DP_RECV_MARGIN = 0.40   # ...and 40% on receivables
 DP_MAX_AGE = 90          # only receivables younger than 90 days count
 OD_LIMIT = 4_200_000   # persona change: was Rs 25 L; see docstring
 STOCK = 1_600_000       # bar stock + WIP on the shop floor
+RHO = 0.6                # correlation of payment shocks within one buyer (simulate)
+P_QTR_SLIP = 0.3         # chance payments in the last 10 days of a quarter slip a week (simulate)
+RISK_TARGET = 0.05       # tolerated chance of a shortfall (answer)
+# engine defaults a tenant's profile["params"] may override, by lowercase name
+DEFAULTS = {"gst_rate": GST_RATE, "tds_rate": TDS_RATE, "dp_stock_margin": DP_STOCK_MARGIN,
+            "dp_recv_margin": DP_RECV_MARGIN, "dp_max_age": DP_MAX_AGE, "rho": RHO, "p_qtr_slip": P_QTR_SLIP,
+            "risk_target": RISK_TARGET, "order_margin_pct": ORDER_MARGIN_PCT}
 
 # True medians of the generating distributions (days from invoice to payment). Buyer A is a mix:
 # base median 60, but invoices raised in a quarter-end window or Oct-Nov (festival) are paid at ~75;
 # the mix's median is ~64.
 PLANTED_MEDIAN_DELAY = {"Buyer A": 64, "Buyer B": 45, "CPSE": 85, "Small customers": 22}
 
-DATA = Path(__file__).resolve().parent.parent / "data" / "synthetic"
-OWNER = DATA.parent / "owner_entries.json"   # owner's real invoices and bills; build() never touches it
+INV_COLS = ["invoice_no", "buyer", "invoice_date", "taxable_inr", "gst_inr", "gross_inr", "tds_inr", "paid_date",
+            "disputed", "treds_accepted"]
+OBL_COLS = ["date", "label", "kind", "amount_inr"]
 REVENUE = 2_400_000      # taxable Rs per month, before seasonality
 SHARE = {"Buyer A": 0.40, "Buyer B": 0.30, "CPSE": 0.15, "Small customers": 0.15}
 N_INV = {"Buyer A": 4, "Buyer B": 3, "CPSE": 2, "Small customers": 14}   # invoices per month
@@ -123,25 +136,58 @@ def _obligations(inv):
     return pd.DataFrame(sorted(rows), columns=["date", "label", "kind", "amount_inr"])
 
 
-def drawing_power(stock_inr, recv_under_90_inr):
-    """Weekly DP: (stock - sundry creditors) and young receivables after margins, capped at the OD limit.
-    Creditors are held constant at today's value (position.json); fine for a 13-week horizon."""
-    paid_stock = np.maximum(0, stock_inr - _creditors())
-    return np.minimum(OD_LIMIT, (1 - DP_STOCK_MARGIN) * paid_stock + (1 - DP_RECV_MARGIN) * recv_under_90_inr)
+_RAW = {}   # tenant -> profile.json
+_POS = {}   # tenant -> position.json
 
 
-_CRED = []
+def _files(tenant):
+    return [tenant_dir(tenant) / f for f in ("profile.json", "invoices.csv", "obligations.csv", "position.json")]
 
 
-def _creditors():
-    if not _CRED:
-        if not (DATA / "position.json").exists():
-            build()
-        _CRED.append(json.loads((DATA / "position.json").read_text())["creditors_inr"])
-    return _CRED[0]
+def _ensure(tenant):
+    """The demo tenant's generated files are git-ignored: rebuild them if missing. Any other tenant must exist."""
+    if tenant == DEFAULT and not all(f.exists() for f in _files(tenant)):
+        build()
+    if not (tenant_dir(tenant) / "profile.json").exists():
+        raise ValueError(f"Unknown tenant {tenant!r}")
+
+
+def profile(tenant=DEFAULT):
+    """profile.json with `today` as a date (None = the real date) and `params` merged over DEFAULTS."""
+    if tenant not in _RAW:
+        _ensure(tenant)
+        _RAW[tenant] = json.loads((tenant_dir(tenant) / "profile.json").read_text())
+    r = _RAW[tenant]
+    bad = set(r.get("params") or {}) - set(DEFAULTS)
+    if bad:
+        raise ValueError(f"Unknown params in {tenant} profile: {', '.join(sorted(bad))}")
+    return {**r, "tenant_id": tenant, "buyers": list(r.get("buyers") or []), "synthetic": r.get("synthetic", True),
+            "today": date.fromisoformat(r["today"]) if r.get("today") else date.today(),
+            "params": {**DEFAULTS, **(r.get("params") or {})}}
+
+
+def position(tenant=DEFAULT):
+    if tenant not in _POS:
+        _ensure(tenant)
+        f = tenant_dir(tenant) / "position.json"
+        if not f.exists():
+            raise ValueError(f"Tenant {tenant!r} has no position.json")
+        _POS[tenant] = json.loads(f.read_text())
+    return _POS[tenant]
+
+
+def drawing_power(stock_inr, recv_under_90_inr, tenant=DEFAULT):
+    """Weekly DP: (stock - sundry creditors) and young receivables after margins, capped at the OD limit
+    (0 = no overdraft, so DP is 0). Creditors are held constant at today's value (position.json); fine for a
+    13-week horizon."""
+    p, pos = profile(tenant)["params"], position(tenant)
+    paid_stock = np.maximum(0, stock_inr - pos["creditors_inr"])
+    return np.minimum(pos["od_limit_inr"], (1 - p["dp_stock_margin"]) * paid_stock
+                      + (1 - p["dp_recv_margin"]) * recv_under_90_inr)
 
 
 def build():
+    """Generate the demo tenant (mahesh-cnc). profile.json is kept if present (it is committed)."""
     rng = np.random.default_rng(SEED)
     inv = _invoices(rng)
     obl = _obligations(inv)
@@ -154,77 +200,96 @@ def build():
     stock = STOCK
     dp = (1 - DP_STOCK_MARGIN) * max(0, stock - cred) + (1 - DP_RECV_MARGIN) * young
     drawn = int(round(dp - 530_000, -4))   # most of the limit drawn; headroom ~Rs 5.3 L
-    DATA.mkdir(parents=True, exist_ok=True)
-    inv.to_csv(DATA / "invoices.csv", index=False)
-    obl.to_csv(DATA / "obligations.csv", index=False)
-    (DATA / "position.json").write_text(json.dumps(
+    d = tenant_dir(DEFAULT)
+    d.mkdir(parents=True, exist_ok=True)
+    inv.to_csv(d / "invoices.csv", index=False)
+    obl.to_csv(d / "obligations.csv", index=False)
+    (d / "position.json").write_text(json.dumps(
         {"bank_inr": 400_000, "od_limit_inr": OD_LIMIT, "od_drawn_inr": drawn, "stock_inr": int(stock), "creditors_inr": cred}, indent=2))
+    if not (d / "profile.json").exists():
+        (d / "profile.json").write_text(json.dumps(
+            {"tenant_id": DEFAULT, "business_name": "Mahesh Precision Components", "buyers": BUYERS,
+             "today": TODAY.isoformat(), "synthetic": True, "params": {}}, indent=2))
+    _RAW.pop(DEFAULT, None)
+    _POS.pop(DEFAULT, None)
 
 
-def owner_entries():
+def _owner(tenant):
+    return tenant_dir(tenant) / "owner_entries.json"   # owner's real invoices and bills; build() never touches it
+
+
+def owner_entries(tenant=DEFAULT):
     """[{"table": "invoices" | "obligations", "row": {...}}, ...] in the order they were added."""
-    return json.loads(OWNER.read_text()) if OWNER.exists() else []
+    f = _owner(tenant)
+    return json.loads(f.read_text()) if f.exists() else []
 
 
-def _save_entries(es):
+def _save_entries(es, tenant):
     if es:
-        OWNER.write_text(json.dumps(es, indent=2))
+        _owner(tenant).write_text(json.dumps(es, indent=2))
     else:
-        OWNER.unlink(missing_ok=True)   # no entries = exactly the synthetic base data
+        _owner(tenant).unlink(missing_ok=True)   # no entries = exactly the base data
 
 
-def _add(table, row):
+def _add(table, row, tenant):
+    profile(tenant)   # unknown tenant: refuse before writing
     e = {"table": table, "row": row}
-    _save_entries(owner_entries() + [e])
+    _save_entries(owner_entries(tenant) + [e], tenant)
     return e
 
 
-def add_invoice(buyer, taxable_inr, invoice_date):
-    """Owner's real invoice: GST, gross and TDS use the synthetic ledger's rates and rounding."""
-    n = sum(e["table"] == "invoices" for e in owner_entries()) + 1
-    gst = int(round(taxable_inr * GST_RATE))
+def add_invoice(buyer, taxable_inr, invoice_date, tenant=DEFAULT):
+    """Owner's real invoice: GST, gross and TDS use the tenant's rates and the base ledger's rounding."""
+    p = profile(tenant)["params"]
+    n = sum(e["table"] == "invoices" for e in owner_entries(tenant)) + 1
+    gst = int(round(taxable_inr * p["gst_rate"]))
     return _add("invoices", {"invoice_no": f"OWN-{n:04d}", "buyer": buyer, "invoice_date": invoice_date.isoformat(),
                              "taxable_inr": taxable_inr, "gst_inr": gst, "gross_inr": taxable_inr + gst,
-                             "tds_inr": int(round(taxable_inr * TDS_RATE)), "paid_date": None, "disputed": 0,
-                             "treds_accepted": 0})
+                             "tds_inr": int(round(taxable_inr * p["tds_rate"])), "paid_date": None, "disputed": 0,
+                             "treds_accepted": 0}, tenant)
 
 
-def add_obligation(d, label, kind, amount_inr):
-    return _add("obligations", {"date": d.isoformat(), "label": label, "kind": kind, "amount_inr": amount_inr})
+def add_obligation(d, label, kind, amount_inr, tenant=DEFAULT):
+    return _add("obligations", {"date": d.isoformat(), "label": label, "kind": kind, "amount_inr": amount_inr}, tenant)
 
 
-def undo_entry():
+def undo_entry(tenant=DEFAULT):
     """Remove the last owner entry; returns it, or None if there was none."""
-    es = owner_entries()
+    es = owner_entries(tenant)
     last = es.pop() if es else None
-    _save_entries(es)
+    _save_entries(es, tenant)
     return last
 
 
-def reset_entries():
-    """Drop all owner entries (back to the synthetic base); returns how many were removed."""
-    n = len(owner_entries())
-    _save_entries([])
+def reset_entries(tenant=DEFAULT):
+    """Drop all owner entries (back to the base data); returns how many were removed."""
+    n = len(owner_entries(tenant))
+    _save_entries([], tenant)
     return n
 
 
-def load():
-    if not all((DATA / f).exists() for f in ("invoices.csv", "obligations.csv", "position.json")):
-        build()
-    own = owner_entries()
+def _csv(f, cols):
+    """A missing or empty file is an empty table (a business with no open bills, say)."""
+    return pd.read_csv(f) if f.exists() and f.stat().st_size else pd.DataFrame(columns=cols)
+
+
+def load(tenant=DEFAULT):
+    label = "synthetic" if profile(tenant)["synthetic"] else "uploaded"   # also builds the demo tenant, or rejects an unknown one
+    d = tenant_dir(tenant)
+    own = owner_entries(tenant)
 
     def merge(df, table):   # base rows untouched when there are no entries, so the baseline is exact
         rows = [e["row"] for e in own if e["table"] == table]
-        df = df.assign(source="synthetic")
+        df = df.assign(source=label)
         return pd.concat([df, pd.DataFrame(rows).assign(source="owner")], ignore_index=True) if rows else df
 
-    inv = merge(pd.read_csv(DATA / "invoices.csv"), "invoices")
+    inv = merge(_csv(d / "invoices.csv", INV_COLS), "invoices")
     for c in ("invoice_date", "paid_date"):
         inv[c] = pd.to_datetime(inv[c]).dt.date
     inv["paid_date"] = inv.paid_date.astype(object).where(inv.paid_date.notna(), None)
-    obl = merge(pd.read_csv(DATA / "obligations.csv"), "obligations")
+    obl = merge(_csv(d / "obligations.csv", OBL_COLS), "obligations")
     obl["date"] = pd.to_datetime(obl["date"]).dt.date
-    return inv, obl, json.loads((DATA / "position.json").read_text())
+    return inv, obl, position(tenant)
 
 
 if __name__ == "__main__":
@@ -248,7 +313,7 @@ if __name__ == "__main__":
     # CPSE is right-censored (slow payers are still open), so its paid-only median reads low
     assert 0.6 * PLANTED_MEDIAN_DELAY["CPSE"] <= emp["CPSE"] <= 1.05 * PLANTED_MEDIAN_DELAY["CPSE"], emp["CPSE"]
 
-    assert set(obl.kind) == set(KINDS)
+    assert set(obl.kind) == set(KINDS) - {"other"}
     assert obl.date.min() > TODAY and obl.date.max() <= HORIZON_END
     assert all(d.day == 20 for d in obl[obl.kind == "gst"].date)
     assert all(d.day == 7 for d in obl[obl.kind == "wages"].date)

@@ -3,9 +3,10 @@ from datetime import date, datetime, timedelta
 
 import numpy as np
 
-from engine import decide, ledger, simulate as sm
+from engine import arrival, decide, ledger, simulate as sm
+from engine.ledger import RISK_TARGET   # the default; a tenant's profile params override it
+from engine.tenants import DEFAULT
 
-RISK_TARGET = 0.05
 KEYS = ["type", "party", "amount_inr", "days", "pct", "date", "obligation", "transcript",
         "needs_clarification", "question"]
 SUPPORTED = {"status": [], "new_order": ["party", "amount_inr", "days"],
@@ -16,7 +17,7 @@ KNOWN = {"status", "new_order", "delay_payment", "expense_shock", "sales_drop", 
          "schedule_change", "payment_received", "add_invoice", "add_obligation"}
 
 
-def _check(s):
+def _check(s, tenant):
     if not isinstance(s, dict):
         raise ValueError("Scenario must be a dict")
     t = s.get("type")
@@ -34,54 +35,56 @@ def _check(s):
         raise ValueError("amount_inr must be a positive whole number of rupees")
     if "days" in SUPPORTED[t] and (isinstance(d, bool) or not isinstance(d, int) or not 0 <= d <= 365):
         raise ValueError("days must be a whole number from 0 to 365")
-    if t in ("delay_payment", "add_invoice", "payment_received") and s["party"] not in ledger.BUYERS:
-        raise ValueError(f"Unknown party {s['party']!r}; expected one of {', '.join(ledger.BUYERS)}")
+    buyers = ledger.profile(tenant)["buyers"]
+    if t in ("delay_payment", "add_invoice", "payment_received") and s["party"] not in buyers:
+        raise ValueError(f"Unknown party {s['party']!r}; expected one of {', '.join(buyers)}")
     if t == "add_obligation" and s["obligation"] not in ledger.KINDS:
         raise ValueError(f"Unknown bill kind {s['obligation']!r}; expected one of {', '.join(ledger.KINDS)}")
     if t == "new_order" and not (isinstance(s["party"], str) and s["party"].strip()):
         raise ValueError("party must be a name")
 
 
-def _date(s, back=0):
+def _date(s, tenant, back=0):
     """Scenario date, after today and within the 90-day horizon; `back` days in the past are allowed too."""
     try:
         d = datetime.strptime(s["date"], "%Y-%m-%d").date()
     except (TypeError, ValueError):
         raise ValueError("date must be YYYY-MM-DD")
-    if not ledger.TODAY - timedelta(days=back) < d <= ledger.TODAY + timedelta(days=90):
+    today = ledger.profile(tenant)["today"]
+    if not today - timedelta(days=back) < d <= today + timedelta(days=90):
         raise ValueError(f"date must fall within the last {back} or next 90 days" if back
                          else "date must fall within the next 90 days")
     return d
 
 
-def reload():
-    """Drop every cache that holds the ledger; call after an owner entry is added or removed."""
-    sm._CACHE.clear()
-    decide._p.cache_clear()
-    _BASE.clear()
-    ledger._CRED.clear()
+def reload(tenant=None):
+    """Drop the caches that hold a tenant's ledger (None = every tenant); call after an owner entry changes."""
+    for c in (sm._CACHE, _BASE, ledger._RAW, ledger._POS):
+        c.clear() if tenant is None else c.pop(tenant, None)
+    for k in [k for k in decide._P if tenant is None or k[0] == tenant]:
+        del decide._P[k]
 
 
-def _save(s):
+def _save(s, tenant):
     """Write a confirmed owner entry. GST, TDS and the invoice number are computed in ledger, never by the LLM."""
     if s["type"] == "add_invoice":
-        e = ledger.add_invoice(s["party"], s["amount_inr"], _date(s, back=365))
+        e = ledger.add_invoice(s["party"], s["amount_inr"], _date(s, tenant, back=365), tenant)
     else:
-        e = ledger.add_obligation(_date(s), s.get("party") or s["obligation"].replace("_", " ").capitalize(),
-                                  s["obligation"], s["amount_inr"])
-    reload()
+        e = ledger.add_obligation(_date(s, tenant), s.get("party") or s["obligation"].replace("_", " ").capitalize(),
+                                  s["obligation"], s["amount_inr"], tenant)
+    reload(tenant)
     return e
 
 
-def undo():
-    e = ledger.undo_entry()
-    reload()
+def undo(tenant=DEFAULT):
+    e = ledger.undo_entry(tenant)
+    reload(tenant)
     return e
 
 
-def reset():
-    n = ledger.reset_entries()
-    reload()
+def reset(tenant=DEFAULT):
+    n = ledger.reset_entries(tenant)
+    reload(tenant)
     return n
 
 
@@ -103,6 +106,11 @@ N_SAMPLE = 30
 CURVE_DELAYS = list(range(0, 61, 5))
 
 
+def _terms(buyers):
+    b45 = [b for b in buyers if TERMS_DAYS.get(b, 45) == 45]
+    return f"45 days for {', '.join(b45)} (MSMED s.15 cap)" + ("; 30 for small customers" if len(b45) < len(buyers) else "")
+
+
 def _sample_paths(sim):
     """~30 paths picked evenly by rank of their lowest liquidity, so safe and short paths both show."""
     liq, short = sim["liquidity"], sim["shortfall"].sum(axis=1) > 0
@@ -111,16 +119,17 @@ def _sample_paths(sim):
     return [{"values": _pct(liq[i]), "short": bool(short[i])} for i in pick]
 
 
-def _arrivals(sim):
+def _arrivals(sim, tenant):
     """Per payer: receipts due on contract dates vs mean simulated receipts, by week (net of TDS)."""
-    live, today, start = sm._state()["live"], ledger.TODAY, sim["dates"][0]
+    S = sm._state(tenant)
+    live, today, start, buyers = S["live"], S["prof"]["today"], sim["dates"][0], S["buyers"]
     out = []
-    rank = lambda kv: ledger.BUYERS.index(kv[0]) if kv[0] in ledger.BUYERS else len(ledger.BUYERS)
+    rank = lambda kv: buyers.index(kv[0]) if kv[0] in buyers else len(buyers)
     for b, exp in sorted(sim["inflow_by_payer"].items(), key=rank):
         rows = live[live.buyer == b]
         due = np.zeros(13)
         for r in rows.itertuples():
-            k = max(0, (r.invoice_date + timedelta(days=TERMS_DAYS[b]) - start).days) // 7   # overdue -> week 1
+            k = max(0, (r.invoice_date + timedelta(days=TERMS_DAYS.get(b, 45)) - start).days) // 7   # overdue -> week 1
             if k < 13:
                 due[k] += r.gross_inr - r.tds_inr
         opened = rows[rows.invoice_date <= today].gross_inr.sum()
@@ -130,12 +139,12 @@ def _arrivals(sim):
     return out
 
 
-def _bridge(sim, worst):
+def _bridge(sim, worst, tenant):
     """Mean path from today to the last day of the worst week: start + receipts - obligations + change in DP = end."""
     start_day = sim["dates"][0]
     end_k = (date.fromisoformat(worst["week_start"]) - start_day).days + 6          # index of last day
     end_date = start_day + timedelta(days=end_k)
-    pos = sm._state()["pos"]
+    pos = sm._state(tenant)["pos"]
     dp0 = sim["dp"][:, 0].mean()
     start = pos["bank_inr"] - pos["od_drawn_inr"] + dp0     # liquidity before day 1's flows
     items = [{"label": f"Receipts: {b}", "amount_inr": int(round(v[:end_k + 1].sum()))}
@@ -158,24 +167,38 @@ def _summary(sim, weeks, obligations, p10, p50, p90):
             "fan": {"p10": _pct(p10), "p50": _pct(p50), "p90": _pct(p90)}}
 
 
-_BASE = []
+_BASE = {}   # tenant -> status-run summary
 
 
-def _baseline():
+def _baseline(tenant):
     """Status-run summary, cached: what things look like with no scenario."""
-    if not _BASE:
-        answer({"type": "status"})
-    return _BASE[0]
+    if tenant not in _BASE:
+        answer({"type": "status"}, tenant)
+    return _BASE[tenant]
 
 
-def answer(scenario):
-    _check(scenario)
+def _fallbacks(S):
+    """Plain-English assumption for buyers whose payment curve is not their own history, else None."""
+    how = S["how"]
+    if set(how.values()) == {"default"}:
+        return (f"Fewer than {arrival.MIN_POOLED} paid invoices in total, so every buyer uses a default curve "
+                f"(median {arrival.DEFAULT_MEDIAN} days, lognormal spread {arrival.DEFAULT_SIGMA}) until there is more history")
+    pooled = [b for b, h in how.items() if h == "pooled"]
+    return (f"{', '.join(pooled)}: fewer than {arrival.MIN_OWN} paid invoices each, so they use the curve pooled "
+            f"across all buyers") if pooled else None
+
+
+def answer(scenario, tenant=DEFAULT):
+    _check(scenario, tenant)
     t = scenario["type"]
     if t in ("add_invoice", "add_obligation"):   # save, then answer status on the new data vs the old
-        before = _baseline()
-        entry = _save(scenario)
-        return {**answer({"type": "status"}), "scenario": {k: scenario.get(k) for k in KEYS},
+        before = _baseline(tenant)
+        entry = _save(scenario, tenant)
+        return {**answer({"type": "status"}, tenant), "scenario": {k: scenario.get(k) for k in KEYS},
                 "baseline": before, "entry": entry}
+    S = sm._state(tenant)
+    prof, prm = S["prof"], S["prof"]["params"]
+    risk_target, today = prm["risk_target"], prof["today"]
     order = delay = extra = received = None
     if t == "new_order":
         order = {"party": scenario["party"], "amount_inr": scenario["amount_inr"],
@@ -183,16 +206,16 @@ def answer(scenario):
     elif t == "delay_payment":
         delay = {scenario["party"]: scenario["days"]}
     elif t == "payment_received":
-        d = _date(scenario, back=365)
-        if d <= ledger.TODAY:
+        d = _date(scenario, tenant, back=365)
+        if d <= today:
             raise ValueError("I can only model a payment expected after today; recording money already received "
                              "isn't supported yet.")
         received = {scenario["party"]: (scenario["amount_inr"], d)}
     elif t == "expense_shock":
-        extra = [{"date": _date(scenario), "label": "Unplanned expense", "kind": "expense",
+        extra = [{"date": _date(scenario, tenant), "label": "Unplanned expense", "kind": "expense",
                   "amount_inr": scenario["amount_inr"]}]
 
-    sim = sm.simulate(extra_delay=delay, order=order, extra_obligations=extra, received=received)
+    sim = sm.simulate(extra_delay=delay, order=order, extra_obligations=extra, received=received, tenant=tenant)
     liq = sim["liquidity"]
     p10, p50, p90 = np.percentile(liq, [10, 50, 90], axis=0)
     obligations = [{"date": o["date"].isoformat(), "label": o["label"], "amount_inr": int(o["amount_inr"])}
@@ -203,50 +226,51 @@ def answer(scenario):
 
     out_order = None
     if order:
-        ot = decide.order_terms(order, RISK_TARGET)
+        ot = decide.order_terms(order, risk_target, tenant=tenant)
         out_order = {"party": order["party"], "amount_inr": order["amount_inr"], "terms_days": order["terms_days"],
-                     **ot, "margin_inr": int(round(order["amount_inr"] * ledger.ORDER_MARGIN_PCT))}
+                     **ot, "margin_inr": int(round(order["amount_inr"] * prm["order_margin_pct"]))}
 
     summary = _summary(sim, weeks, obligations, p10, p50, p90)
     worst = _worst(weeks, obligations)
     result = {
-        "as_of": ledger.TODAY.isoformat(), "synthetic": True, "placeholder": False, "risk_target": RISK_TARGET,
+        "tenant": tenant, "as_of": today.isoformat(), "synthetic": prof["synthetic"], "placeholder": False,
+        "risk_target": risk_target,
         "scenario": {k: scenario.get(k) for k in KEYS},
         "today": {k: int(v) for k, v in sim["today"].items()},
         "fan": {"dates": [d.isoformat() for d in sim["dates"]], "p10": _pct(p10), "p50": _pct(p50), "p90": _pct(p90)},
         "obligations": obligations,
         "weeks": weeks,
         "worst_week": worst,
-        "kab_tak": decide.kab_tak(RISK_TARGET, base_order=order),
+        "kab_tak": decide.kab_tak(risk_target, buyers=tuple(S["buyers"][:3]), base_order=order, tenant=tenant),
         "order": out_order,
         "fixes": [],
         "plan": None,
         "assumptions": [
-            {"name": "Risk target", "value": f"{RISK_TARGET:.0%} chance of a shortfall"},
-            {"name": "Buyer shock", "value": f"invoices from one buyer move together (correlation {sm.RHO})"},
-            {"name": "Quarter-end slip", "value": f"{sm.P_QTR_SLIP:.0%} chance payments around 31 Dec slip a week"},
-            {"name": "Drawing power", "value": f"{ledger.DP_STOCK_MARGIN:.0%} margin on stock, {ledger.DP_RECV_MARGIN:.0%} on "
-                                               f"receivables; receivables older than {ledger.DP_MAX_AGE} days excluded [U]"},
-            {"name": "TDS", "value": f"{ledger.TDS_RATE:.0%} deducted by buyers"},
-            {"name": "GST", "value": f"{ledger.GST_RATE:.0%}, due on the 20th of the next month on accrual"},
+            {"name": "Risk target", "value": f"{risk_target:.0%} chance of a shortfall"},
+            {"name": "Buyer shock", "value": f"invoices from one buyer move together (correlation {prm['rho']})"},
+            {"name": "Quarter-end slip", "value": f"{prm['p_qtr_slip']:.0%} chance payments around 31 Dec slip a week"},
+            {"name": "Drawing power", "value": f"{prm['dp_stock_margin']:.0%} margin on stock, {prm['dp_recv_margin']:.0%} on "
+                                               f"receivables; receivables older than {prm['dp_max_age']} days excluded [U]"},
+            {"name": "TDS", "value": f"{prm['tds_rate']:.0%} deducted by buyers"},
+            {"name": "GST", "value": f"{prm['gst_rate']:.0%}, due on the 20th of the next month on accrual"},
             {"name": "Kab tak rule", "value": "largest delay keeping shortfall risk at or below the risk target "
                                               "(or today's risk plus the target if already above it)"},
-            {"name": "Contract terms", "value": "45 days for Buyer A, Buyer B, CPSE (MSMED s.15 cap); 30 for small customers"},
-            {"name": "Data", "value": "Synthetic ledger"},
-        ],
+            {"name": "Contract terms", "value": _terms(S["buyers"])},
+            {"name": "Data", "value": "Synthetic ledger" if prof["synthetic"] else "Ledger uploaded by the owner"},
+        ] + ([{"name": "Payment timing", "value": fb}] if (fb := _fallbacks(S)) else []),
         # optional explain-the-simulation fields (additive; not in the frozen fixture)
         "n_paths": int(liq.shape[0]),
         "n_short_paths": int((sim["shortfall"].sum(axis=1) > 0).sum()),
         "sample_paths": _sample_paths(sim),
-        "baseline": None if t == "status" else _baseline(),
-        "arrivals": _arrivals(sim),
-        "bridge": _bridge(sim, worst),
+        "baseline": None if t == "status" else _baseline(tenant),
+        "arrivals": _arrivals(sim, tenant),
+        "bridge": _bridge(sim, worst, tenant),
         "kab_tak_curves": [{"buyer": b, "delays": CURVE_DELAYS,
-                            "p_shortfall": [round(decide._run({b: d}, order), 3) for d in CURVE_DELAYS]}
-                           for b in ("Buyer A", "Buyer B", "CPSE")],
+                            "p_shortfall": [round(decide._run({b: d}, order, tenant=tenant), 3) for d in CURVE_DELAYS]}
+                           for b in S["buyers"][:3]],
     }
-    if t == "status" and not _BASE:
-        _BASE.append(summary)
+    if t == "status" and tenant not in _BASE:
+        _BASE[tenant] = summary
     return result
 
 
