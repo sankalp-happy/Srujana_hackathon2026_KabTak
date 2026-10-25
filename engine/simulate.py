@@ -58,7 +58,9 @@ def _qtr_map(horizon):
 
 
 def simulate(extra_delay=None, order=None, extra_obligations=None, n_paths=1000, horizon=90,
-             seed=0, shared=True, noise=True):
+             seed=0, shared=True, noise=True, received=None):
+    """received = {buyer: (cash_inr, date)}: that buyer pays this much on that day, settling its invoices
+    (dated on or before the day, not disputed) oldest first; the rest of its invoices keep their random delays."""
     S = _state()
     live, pos, km = S["live"], S["pos"], S["km"]
     extra_delay = extra_delay or {}
@@ -68,11 +70,27 @@ def simulate(extra_delay=None, order=None, extra_obligations=None, n_paths=1000,
     # ---- invoice table: (inv_k, age, gross, receipt, buyer) incl. open, planned future, and the order ----
     inv_k = np.array([(d - today).days for d in live["invoice_date"]])
     age = np.maximum(-inv_k, 0)
-    gross = live["gross_inr"].to_numpy(float)
+    gross = live["gross_inr"].to_numpy(float, copy=True)   # a promised payment edits it; keep the cache clean
     receipt = gross - live["tds_inr"].to_numpy(float)
     buyer = live["buyer"].to_numpy()
     disputed = live["disputed"].to_numpy().astype(bool)
     n_live = len(live)
+
+    # ---- promised payments: split the settled part of each invoice off into a fixed-day column ----
+    fix = []                                                # (pay_k, inv_k, gross, receipt, payer)
+    for b, (cash, d) in (received or {}).items():
+        k, left = (d - today).days, float(cash)
+        for i in sorted(np.flatnonzero((buyer == b) & ~disputed & (inv_k <= k)), key=lambda i: inv_k[i]):
+            if left <= 0:
+                break
+            take = min(left, receipt[i])
+            share = take / receipt[i]
+            fix.append((k, inv_k[i], gross[i] * share, take, b))
+            gross[i] -= gross[i] * share
+            receipt[i] -= take
+            left -= take
+        if left > 0.5:
+            raise ValueError(f"{b} owes only ₹{(cash - left) / 1e5:.2f} L (after TDS) on invoices dated by {d:%d %b}")
 
     # ---- randomness: draw everything up-front in fixed order so scenarios share random numbers ----
     rng = np.random.default_rng(seed)
@@ -145,18 +163,20 @@ def simulate(extra_delay=None, order=None, extra_obligations=None, n_paths=1000,
         in_h = (all_pay >= 1) & (all_pay <= H)
         shifted = _qtr_map(H)[np.clip(all_pay, 0, H)]
         all_pay = np.where(qtr[:, None] & in_h, shifted, all_pay)
+    fk, fi, fg, fr, fp = (np.array(c) for c in zip(*fix)) if fix else (np.empty(0, int),) * 4 + (np.empty(0, object),)
+    all_pay = np.concatenate([all_pay, np.broadcast_to(fk, (P, len(fk)))], axis=1)   # promised: no slip
 
     # ---- receipts ----
-    all_receipt = np.concatenate([receipt, extra_receipt])
-    all_gross = np.concatenate([gross, extra_gross])
-    all_inv_k = np.concatenate([inv_k, extra_inv_k]).astype(int)
+    all_receipt = np.concatenate([receipt, extra_receipt, fr])
+    all_gross = np.concatenate([gross, extra_gross, fg])
+    all_inv_k = np.concatenate([inv_k, extra_inv_k, fi]).astype(int)
     col = np.where((all_pay >= 1) & (all_pay <= H), all_pay, H + 1)
     flat = (np.arange(P)[:, None] * (H + 2) + col).ravel()
     inflow += np.bincount(flat, weights=np.broadcast_to(all_receipt, col.shape).ravel(),
                           minlength=P * (H + 2)).reshape(P, H + 2)
     inflow = inflow[:, 1:H + 1]
     # mean receipts per day by payer (for the expected-vs-due view and the bridge)
-    payer = np.concatenate([buyer, np.array([order["party"]] if order else [], dtype=object)])
+    payer = np.concatenate([buyer, np.array([order["party"]] if order else [], dtype=object), fp])
     by_payer = {}
     for name in dict.fromkeys(payer):
         m = payer == name

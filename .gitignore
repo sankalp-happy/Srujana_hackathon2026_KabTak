@@ -24,3 +24,4 @@ build/
 *.ckpt
 *.safetensors
 data/raw/
+data/owner_entries.json
