@@ -124,7 +124,7 @@ def shree():
     obl = shree_obligations(inv)
     prof = {"tenant_id": "shree-textiles", "business_name": "Shree Textiles, Ichalkaranji", "buyers": SHREE_BUYERS,
             "today": TODAY.isoformat(), "synthetic": True, "params": SHREE_PARAMS}
-    return prof, inv, obl, _position(obl, 300_000, 450_000)
+    return prof, inv, obl, _position(obl, 1_100_000, 450_000)   # bank calibrated on the engine: worst week ~23% (mid-Dec)
 
 
 # ---- Sai Snacks ----
@@ -160,7 +160,7 @@ def sai():
     obl = pd.DataFrame(sorted(rows), columns=OBL_COLS)
     prof = {"tenant_id": "sai-snacks", "business_name": "Sai Snacks, Pune", "buyers": SAI_BUYERS,
             "today": TODAY.isoformat(), "synthetic": True, "params": SAI_PARAMS}
-    return prof, inv, obl, _position(obl, 90_000, 35_000)
+    return prof, inv, obl, _position(obl, 200_000, 35_000)   # bank calibrated on the engine: worst week ~17% (Jan)
 
 
 def write_tenant(prof, inv, obl, pos):
@@ -334,7 +334,7 @@ def check_shree(inv, obl, pos):
     for lo, r, o, c in weeks:
         print(f"  {lo}  {r:>9,}  {o:>10,}  {c:>10,}")
     print(f"  lowest week closing: Rs {low:,}")
-    assert -300_000 <= low <= 100_000, low   # tight, not hopeless: at most a few lakh short, never comfortable
+    assert low < pos["bank_inr"], low   # the season dips below the opening balance (the engine puts the risk at ~23%)
     assert weeks[-1][3] > 0, weeks[-1]       # the season does pull the business back by January
     return weeks
 

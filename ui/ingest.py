@@ -67,7 +67,7 @@ def read_table(filename, raw_bytes):
 
 # ---------- map columns ----------
 _KEYS = {   # header keywords, most specific first; first match wins per field
-    "paid_date": ["paid date", "payment date", "date of payment", "receipt date", "received date", "settled", "realis", "paid on"],
+    "paid_date": ["paid date", "payment date", "date of payment", "receipt date", "received", "recd", "settled", "realis", "paid on"],
     "invoice_no": ["invoice no", "invoice number", "inv no", "inv.no", "bill no", "voucher no", "vch no", "invoice #", "ref no"],
     "buyer": ["party", "buyer", "customer", "client", "particulars", "debtor", "name"],
     "invoice_date": ["invoice date", "bill date", "inv date", "voucher date", "date"],

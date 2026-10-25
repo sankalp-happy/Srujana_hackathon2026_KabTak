@@ -115,7 +115,7 @@ SCHEMA = {
     },
 }
 def _parse_prompt(buyers, today):
-    a, b = buyers[0], buyers[1] if len(buyers) > 1 else buyers[0]   # example names come from the tenant
+    a, b = (buyers + ["your buyer", "another buyer"])[:2] if len(buyers) < 2 else buyers[:2]   # example names come from the tenant
     return f"""You turn a small-factory owner's question about cash flow into one typed scenario. Today is {today:%Y-%m-%d} ({today:%A}).
 Copy values only from what the owner said; never guess an amount, a number of days or a date.
 
@@ -131,7 +131,7 @@ type, its required fields, and what days means:
 - add_* SAVE data; every other type is a what-if that saves nothing. Use add_* only when the owner states a real invoice or bill and asks to add, record, note, save or enter it. "Can I spend / what if / should I" is a what-if (expense_shock, new_order). A bare amount and date with no ask ("Machine repair 2 lakh on 10 Nov") is unclear: set needs_clarification and ask "Should I save this as a real bill, or is it a what-if?" (or "real invoice").
 
 Rules:
-- Known buyers: {", ".join(buyers)}. For delay_payment, payment_received and add_invoice the party must be one of these, written exactly so; if the owner names someone else, ask which of these buyers they mean, listing them all. For new_order use the name as said (e.g. "Bajaj"), or "New buyer" if unnamed.
+- Known buyers: {", ".join(buyers) or "none yet"}. For delay_payment, payment_received and add_invoice the party must be one of these, written exactly so; if the owner names someone else, ask which of these buyers they mean, listing them all. For new_order use the name as said (e.g. "Bajaj"), or "New buyer" if unnamed.
 - amount_inr is whole rupees: 1 lakh = 100000, 1 crore = 10000000, 1 hazaar = 1000. "12 L" = 1200000. Read Devanagari digits (०-९) and Marathi/Hindi number words.
 - "a month" = 30 days, "two months" = 60, "a week" = 7. Dates are YYYY-MM-DD, resolved from today; "next week" = {today + timedelta(days=7):%Y-%m-%d}.
 - If a required field is missing or the question is unclear, set needs_clarification true and put exactly ONE short follow-up question in question, in the owner's language. Otherwise question is null.
@@ -140,7 +140,7 @@ Rules:
 
 def parse(text, buyers=None, today=None):
     """buyers/today come from the tenant's profile (engine.ledger.profile); None = the demo tenant's."""
-    s = _chat([{"role": "system", "content": _parse_prompt(buyers or BUYERS, today or TODAY)}, {"role": "user", "content": text}], SCHEMA)
+    s = _chat([{"role": "system", "content": _parse_prompt(BUYERS if buyers is None else buyers, today or TODAY)}, {"role": "user", "content": text}], SCHEMA)
     s["transcript"] = text
     return s
 
@@ -293,6 +293,7 @@ if __name__ == "__main__":
     assert _safe("Risk 1.5 months. Week of 28 Dec.", f) is None
     assert "28 Dec" in TEMPLATE["mr"].format_map(f)
     q = _parse_prompt(["Om Traders", "Bajrang Mills"], TODAY)   # examples use the tenant's buyers, not Mahesh's
+    assert "Buyer A" not in _parse_prompt([], TODAY) and "none yet" in _parse_prompt([], TODAY)   # a new business never sees Mahesh's buyers
     assert "Om Traders pays a month late" in q and "Bajrang Mills clears" in q and "Buyer A" not in q and "CPSE" not in q
     assert _safe("₹26 L is over 45 days old.", {**f, "money_owed_for_over_45_days": "₹26 L"})
     print("ok")

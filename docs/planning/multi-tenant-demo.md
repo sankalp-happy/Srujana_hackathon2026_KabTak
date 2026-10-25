@@ -41,7 +41,7 @@ python3 ui/server.py                                   # onboarding page at http
 | Tenant | Shape |
 |---|---|
 | `mahesh-cnc` | CNC shop, Pune. ₹42 L overdraft, 4 buyers, quarter-end slips. |
-| `shree-textiles` | Power-loom fabric trader, Ichalkaranji (Marathi owner). No overdraft, bank ₹3 L, 5 buyers: Mehta Wholesale pays at ~75 days, Counter sales pays the next day. Sales peak Nov–Feb, so early November is tight. |
-| `sai-snacks` | Snack maker, Pune, 3 months old. 3 buyers, 8 paid invoices, bank ₹90 K. |
+| `shree-textiles` | Power-loom fabric trader, Ichalkaranji (Marathi owner). No overdraft, bank ₹11 L, 5 buyers: Mehta Wholesale pays at ~75 days, Counter sales pays the next day. Sales peak Nov–Feb; the engine puts a ~23% shortfall risk on the week of 14 Dec (Mahesh: 2%). |
+| `sai-snacks` | Snack maker, Pune, 3 months old. 3 buyers, 8 paid invoices, bank ₹2 L. Every buyer uses the default payment curve (too little history); ~17% risk in January. |
 
 Numbers in the answers come from the engine on the day. Rehearse once, and if a number here disagrees with the engine, the engine wins.

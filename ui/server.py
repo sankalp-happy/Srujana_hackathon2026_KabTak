@@ -57,10 +57,6 @@ class Handler(SimpleHTTPRequestHandler):
         if not known:
             self.send_json(404, {"error": f"Unknown business {tid!r}."})
             return False, None
-        from engine import ledger
-        if not hasattr(ledger, "profile"):  # ponytail: drop once the engine's tenant API is on main
-            self.send_json(501, {"error": "This engine build has no multi-tenant support yet."})
-            return False, None
         return True, tid
 
     def do_GET(self):
