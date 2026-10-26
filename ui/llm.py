@@ -37,20 +37,27 @@ def _key(*names):
     raise RuntimeError(f"No {names[0]} in the environment or .env")
 
 
-def _chat(messages, schema=None, model=MODEL, temperature=0):
-    body = {"model": model, "messages": messages, "temperature": temperature}
+OR_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
+# Each step has its own rate limit (Groq's free tier is ~8,000 tokens a minute, about 4 parses): on 429, try the next.
+CHAIN = [(URL, MODEL, ("GROQ_KEY", "GROQ_API_KEY")), (URL, FALLBACK, ("GROQ_KEY", "GROQ_API_KEY")),
+         (OR_CHAT_URL, os.environ.get("OR_CHAT_MODEL", "openai/gpt-oss-120b"), ("OPENROUTER_KEY", "OPENROUTER_API_KEY"))]
+
+
+def _chat(messages, schema=None, temperature=0):
+    body = {"messages": messages, "temperature": temperature}
     if schema:
         body["response_format"] = {"type": "json_schema", "json_schema": {"name": "out", "strict": True, "schema": schema}}
-    req = urllib.request.Request(URL, json.dumps(body).encode(), {
-        "Authorization": f"Bearer {_key()}", "Content-Type": "application/json", "User-Agent": "kabtak-ui"})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r:
-            text = json.load(r)["choices"][0]["message"]["content"]
-    except urllib.error.HTTPError as e:
-        if e.code == 429 and model != FALLBACK:
-            return _chat(messages, schema, FALLBACK, temperature)
-        raise
-    return json.loads(text) if schema else text.strip()
+    for i, (url, model, keys) in enumerate(CHAIN):
+        req = urllib.request.Request(url, json.dumps({**body, "model": model}).encode(), {
+            "Authorization": f"Bearer {_key(*keys)}", "Content-Type": "application/json", "User-Agent": "kabtak-ui"})
+        try:
+            with urllib.request.urlopen(req, timeout=15 if url == URL else 25) as r:   # OpenRouter is slower (~9 s)
+                text = json.load(r)["choices"][0]["message"]["content"]
+            return json.loads(text) if schema else text.strip()
+        except urllib.error.HTTPError as e:
+            if e.code != 429 or i == len(CHAIN) - 1:
+                raise
+            print(f"llm: {model} rate-limited, trying {CHAIN[i + 1][1]}", file=sys.stderr)
 
 
 # ---------- speech to text ----------
@@ -338,4 +345,26 @@ if __name__ == "__main__":
         assert b'name="language"\r\n\r\nhi\r\n' in uo.call_args[0][0].data and uo.call_args.kwargs["timeout"] == 15
         _whisper(b"x")
         assert b'name="language"' not in uo.call_args[0][0].data
+    import io   # rate limits walk the chain: Groq main -> Groq fallback -> OpenRouter; any other error is raised
+    hops = []
+    class Ok:
+        __enter__ = lambda self: self
+        __exit__ = lambda *a: None
+        read = lambda self: json.dumps({"choices": [{"message": {"content": '{"type": "status"}'}}]}).encode()
+    def limited(req, timeout):
+        hops.append((req.full_url == URL, json.loads(req.data)["model"], timeout))
+        if req.full_url == URL:
+            raise urllib.error.HTTPError(req.full_url, 429, "rate limited", {}, io.BytesIO(b""))
+        return Ok()
+    with mock.patch("urllib.request.urlopen", limited), mock.patch.dict(globals(), {"_key": lambda *n: "k"}):
+        assert _chat([{"role": "user", "content": "hi"}], SCHEMA) == {"type": "status"}
+    assert [(g, m) for g, m, _ in hops] == [(True, MODEL), (True, FALLBACK), (False, CHAIN[2][1])] and hops[-1][2] == 25
+    def broken(req, timeout):
+        raise urllib.error.HTTPError(req.full_url, 401, "bad key", {}, io.BytesIO(b""))
+    with mock.patch("urllib.request.urlopen", broken), mock.patch.dict(globals(), {"_key": lambda *n: "k"}):
+        try:
+            _chat([{"role": "user", "content": "hi"}])
+            raise AssertionError("401 swallowed")
+        except urllib.error.HTTPError as e:
+            assert e.code == 401
     print("ok")

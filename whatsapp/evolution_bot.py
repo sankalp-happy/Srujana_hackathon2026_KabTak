@@ -42,7 +42,7 @@ NO = {"नाही", "नको", "नहीं", "नही", "no", "n", "nahi
 RISK = {"risk", "risky", "safe", "check", "रिस्क", "जोखिम", "धोका"}  # "no, tell me the risk": the owner wants the what-if answered
 WORD = re.compile(r"[\wऀ-ॣ]+")  # \w alone splits Devanagari at vowel signs: "हाँ" -> "ह"
 JOIN = re.compile(r"\bjoin\b\W*((?:\d\s?){6})(?!\d)", re.I)  # "JOIN 123456", "join 123 456", "Join 1 2 3 4 5 6." (voice)
-asked: dict[str, tuple[str, str]] = {}  # sender -> (original text, our clarification question)
+asked: dict[str, tuple[str, str, dict]] = {}  # sender -> (original text, our clarification question, what we parsed so far)
 last_result: dict[str, dict] = {}  # sender -> engine result, charted after the reply
 pending: dict[str, dict] = {}  # sender -> scenario awaiting yes/no (demo only)
 
@@ -123,7 +123,10 @@ def answer_for(sender: str, tid: str, text: str) -> str:
     try:
         s = None
         if sender in asked:  # the reply may answer our question, or be a whole new question that stands on its own
-            orig, q = asked.pop(sender)
+            orig, q, prev = asked.pop(sender)
+            if prev.get("amount_inr") and prev.get("date") and (RISK & set(words) or "what if" in text.lower() or t in NO):
+                # "save it or what-if?" answered "no / what if / tell me the risk": run that what-if, no second guess
+                return run(sender, tid, {**prev, "type": "expense_shock", "needs_clarification": False, "question": None})
             alone = parse_scenario(text, buyers=prof["buyers"], today=prof["today"])
             if not alone.get("needs_clarification") and (alone.get("amount_inr") or alone.get("party") or alone["type"].startswith("list_")):
                 s = alone
@@ -133,7 +136,7 @@ def answer_for(sender: str, tid: str, text: str) -> str:
     except Exception:  # LLM down / key missing / timed out: not the owner's fault
         return "I'm a bit busy right now, please send that again in a minute."
     if s.get("needs_clarification"):
-        asked[sender] = (text, s["question"])
+        asked[sender] = (text, s["question"], s)
         return s["question"]
     if not s["type"].startswith("add_") and no_data(tid):  # a what-if on an empty ledger would say "0% risk"
         return f"I don't have any of your numbers yet. {START}"
@@ -373,6 +376,17 @@ if __name__ == "__main__":
         r = say("No", A)
         assert r.startswith("Not saved. Here is the risk if you pay it") and ea.call_args[0][0]["type"] == "expense_shock" and ea.call_count == n + 1
         assert ea.call_args[0][0]["amount_inr"] == 300_000 and ea.call_args[0][0]["date"] == "2026-11-02" and A not in pending
+        last_result.clear()
+        save_or_whatif = dict(spend, type="add_obligation", needs_clarification=True,
+                              question="Should I save this as a real bill, or is it a what-if?")
+        for reply in ("no , tell me the risk", "What if", "नहीं"):   # the live case: answered without asking the model again
+            with mock.patch(f"{__name__}.parse_scenario", return_value=save_or_whatif):
+                say("Then pay 20 lakh on 15th of November", A)
+            n = ea.call_count
+            with mock.patch(f"{__name__}.parse_scenario", side_effect=AssertionError("no second parse")):
+                assert "Riskiest week" in say(reply, A), reply
+            assert ea.call_count == n + 1 and ea.call_args[0][0]["type"] == "expense_shock" and A not in asked
+            assert (ea.call_args[0][0]["amount_inr"], ea.call_args[0][0]["date"]) == (2_000_000, "2026-11-15")
         last_result.clear()
         with mock.patch(f"{__name__}.parse_scenario", return_value=spend):   # "no, tell me the risk" at a read-back answers it
             say("pay 20 lakh on 15 Nov", A)
