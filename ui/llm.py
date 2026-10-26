@@ -44,7 +44,7 @@ def _chat(messages, schema=None, model=MODEL, temperature=0):
     req = urllib.request.Request(URL, json.dumps(body).encode(), {
         "Authorization": f"Bearer {_key()}", "Content-Type": "application/json", "User-Agent": "kabtak-ui"})
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
+        with urllib.request.urlopen(req, timeout=15) as r:
             text = json.load(r)["choices"][0]["message"]["content"]
     except urllib.error.HTTPError as e:
         if e.code == 429 and model != FALLBACK:
@@ -56,7 +56,7 @@ def _chat(messages, schema=None, model=MODEL, temperature=0):
 # ---------- speech to text ----------
 STT_MODEL, STT_FALLBACK = "whisper-large-v3", "whisper-large-v3-turbo"   # full model is better on Marathi
 STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
-# Biases Whisper towards the words owners use; no language set, so Marathi, Hindi and English all work.
+# Biases Whisper towards the words owners use; no language set (unless a retry says Hindi), so Marathi, Hindi and English all work.
 STT_HEAD, STT_TAIL = "ऑर्डर, लाख, दिवस, पगार, बजाज, टाटा", "wages, GST, overdraft, advance."
 STT_PROMPT = f"{STT_HEAD}, बायर ए, बायर बी, Buyer A, Buyer B, CPSE, {STT_TAIL}"
 
@@ -65,14 +65,28 @@ OR_STT_MODEL = os.environ.get("STT_MODEL", "elevenlabs/scribe-v2")
 OR_STT_URL = "https://openrouter.ai/api/v1/audio/transcriptions"
 
 
+ARABIC = re.compile("[\u0600-\u06ff]")   # speech-to-text sometimes writes Hindi in Urdu script
+
+
 def transcribe(audio, mime="audio/webm", hint=None):
-    """OpenRouter Voxtral first; any failure falls back to Groq Whisper. hint = the tenant's buyer names, biasing Whisper."""
+    """OpenRouter scribe-v2 first; any failure falls back to Groq Whisper. hint = the tenant's buyer names, biasing Whisper.
+    Arabic script means Hindi was mis-heard as Urdu: redo it with Whisper told it is Hindi."""
+    text = _transcribe(audio, mime, hint)
+    if ARABIC.search(text):
+        try:
+            text = _whisper(audio, mime, hint=hint, language="hi") or text
+        except Exception as e:
+            print("transcribe: Hindi retry failed:", e, file=sys.stderr)
+    return text
+
+
+def _transcribe(audio, mime, hint):
     try:
         fmt = {"mpeg": "mp3", "mp4": "m4a", "x-wav": "wav"}.get(mime.split(";")[0].split("/")[-1], mime.split(";")[0].split("/")[-1])
         body = json.dumps({"model": OR_STT_MODEL, "input_audio": {"data": base64.b64encode(audio).decode(), "format": fmt}}).encode()
         req = urllib.request.Request(OR_STT_URL, body, {"Authorization": f"Bearer {_key('OPENROUTER_KEY')}",
                                                         "Content-Type": "application/json", "User-Agent": "kabtak-ui"})
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=15) as r:
             text = json.load(r)["text"].strip()
         if text:
             return text
@@ -81,22 +95,22 @@ def transcribe(audio, mime="audio/webm", hint=None):
     return _whisper(audio, mime, hint=hint)
 
 
-def _whisper(audio, mime="audio/webm", model=STT_MODEL, hint=None):
+def _whisper(audio, mime="audio/webm", model=STT_MODEL, hint=None, language=None):
     ext = {"webm": "webm", "ogg": "ogg", "mp4": "m4a", "mpeg": "mp3", "wav": "wav", "x-wav": "wav", "aiff": "aiff"}.get(
         mime.split(";")[0].split("/")[-1], "webm")
     b = uuid.uuid4().hex
     field = lambda k, v: f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
-    body = (field("model", model) + field("response_format", "json") + field("prompt", f"{STT_HEAD}, {hint}, {STT_TAIL}" if hint else STT_PROMPT) +
+    body = (field("model", model) + field("response_format", "json") + (field("language", language) if language else b"") + field("prompt", f"{STT_HEAD}, {hint}, {STT_TAIL}" if hint else STT_PROMPT) +
             f'--{b}\r\nContent-Disposition: form-data; name="file"; filename="q.{ext}"\r\n'
             f"Content-Type: {mime.split(';')[0]}\r\n\r\n".encode() + audio + f"\r\n--{b}--\r\n".encode())
     req = urllib.request.Request(STT_URL, body, {"Authorization": f"Bearer {_key()}", "User-Agent": "kabtak-ui",
                                                  "Content-Type": f"multipart/form-data; boundary={b}"})
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=15) as r:
             return json.load(r)["text"].strip()
     except urllib.error.HTTPError as e:
         if e.code == 429 and model != STT_FALLBACK:
-            return _whisper(audio, mime, STT_FALLBACK, hint)
+            return _whisper(audio, mime, STT_FALLBACK, hint, language)
         raise
 
 
@@ -140,7 +154,8 @@ Rules:
 
 def parse(text, buyers=None, today=None):
     """buyers/today come from the tenant's profile (engine.ledger.profile); None = the demo tenant's."""
-    s = _chat([{"role": "system", "content": _parse_prompt(BUYERS if buyers is None else buyers, today or TODAY)}, {"role": "user", "content": text}], SCHEMA)
+    today = max(today or TODAY, date.today())   # a demo tenant pins today to the past; "today" and "tomorrow" must still resolve to real dates
+    s = _chat([{"role": "system", "content": _parse_prompt(BUYERS if buyers is None else buyers, today)}, {"role": "user", "content": text}], SCHEMA)
     s["transcript"] = text
     return s
 
@@ -296,4 +311,29 @@ if __name__ == "__main__":
     assert "Buyer A" not in _parse_prompt([], TODAY) and "none yet" in _parse_prompt([], TODAY)   # a new business never sees Mahesh's buyers
     assert "Om Traders pays a month late" in q and "Bajrang Mills clears" in q and "Buyer A" not in q and "CPSE" not in q
     assert _safe("₹26 L is over 45 days old.", {**f, "money_owed_for_over_45_days": "₹26 L"})
+    from unittest import mock   # a pinned past "today" never reaches the parser; Hindi heard as Urdu is redone with language=hi
+    with mock.patch.dict(globals(), {"_chat": lambda m, schema=None: {"type": "status", "prompt": m[0]["content"]}}):
+        assert f"Today is {date.today():%Y-%m-%d}" in parse("x", [], date(2026, 10, 25))["prompt"]
+        assert "Today is 2999-01-01" in parse("x", [], date(2999, 1, 1))["prompt"]
+    calls = []
+    def whisper(audio, mime="audio/webm", model=None, hint=None, language=None):
+        calls.append(language)
+        return "भुगतान" if language == "hi" else "ادائیگی"
+    def offline(*a, **k):
+        raise RuntimeError("no key")
+    with mock.patch.dict(globals(), {"_whisper": whisper, "_key": offline}):
+        assert transcribe(b"x", "audio/ogg") == "भुगतान" and calls == [None, "hi"]
+        calls.clear()
+        whisper_en = lambda *a, language=None, **k: calls.append(language) or "Buyer A pays late"
+        with mock.patch.dict(globals(), {"_whisper": whisper_en}):
+            assert transcribe(b"x") == "Buyer A pays late" and calls == [None]   # Latin and Devanagari are left alone
+    class Reply:
+        __enter__ = lambda self: self
+        __exit__ = lambda *a: None
+        read = lambda self: b'{"text": "ok"}'
+    with mock.patch("urllib.request.urlopen", return_value=Reply()) as uo, mock.patch.dict(globals(), {"_key": lambda *n: "k"}):
+        _whisper(b"x", language="hi")
+        assert b'name="language"\r\n\r\nhi\r\n' in uo.call_args[0][0].data and uo.call_args.kwargs["timeout"] == 15
+        _whisper(b"x")
+        assert b'name="language"' not in uo.call_args[0][0].data
     print("ok")

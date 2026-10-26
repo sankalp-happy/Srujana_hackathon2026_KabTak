@@ -58,8 +58,18 @@ def readback(s: dict, gst_rate: float = 0.18) -> str:
 
 
 def format_reply(r: dict) -> str:
+    out = _reply(r)
+    if any(a["name"] == "Payment timing" for a in r.get("assumptions") or []):   # default or pooled payment curve
+        out += "\n\n_Forecasts get sharper as you add more invoices. For now some buyers use a standard payment pattern._"
+    return out
+
+
+def _reply(r: dict) -> str:
     w, s = r["worst_week"], r["scenario"]
-    line1 = f"⚠️ *Riskiest week: {_d(w['week_start'])}*\n{round(w['p_shortfall'] * 100)}% chance of running short"
+    ok = w["p_shortfall"] <= r["risk_target"]
+    line1 = (f"✅ *Riskiest week: {_d(w['week_start'])}*\n{round(w['p_shortfall'] * 100)}% chance of running short, "
+             f"inside your {round(r['risk_target'] * 100)}% limit" if ok else
+             f"⚠️ *Riskiest week: {_d(w['week_start'])}*\n{round(w['p_shortfall'] * 100)}% chance of running short")
     line1 += f" _({w['obligation']})_" if w["obligation"] else ""
     if e := r.get("entry"):   # owner entry saved: show what changed against the data before it
         b, t = r["baseline"], r["today"]
@@ -73,7 +83,9 @@ def format_reply(r: dict) -> str:
     o = r.get("order")
     if o and s["type"] == "new_order":
         line2 = ("✅ Safe on these terms." if o["max_safe_terms_days"] >= o["terms_days"]
-                 else f"Safe terms: *{o['max_safe_terms_days']} days*\nMinimum advance: *{o['min_advance_pct']}%*")
+                 else f"Even payment on delivery isn't safe. Ask for at least *{o['min_advance_pct']}%* advance."
+                 if not o["max_safe_terms_days"] else
+                 f"Safe terms: *{o['max_safe_terms_days']} days*\nMinimum advance: *{o['min_advance_pct']}%*")
     elif s["type"] == "delay_payment":
         k = next((k for k in r.get("kab_tak") or [] if k["buyer"] == s["party"]), None)
         line2 = f"{s['party']} can pay at most *{k['max_delay_days']} days* late before risk rises." if k else ""
@@ -84,7 +96,7 @@ def format_reply(r: dict) -> str:
         pl = r["plan"]
         line2 = f"Fix costs *{_inr(pl['total_cost_inr'])}*; risk falls to *{round(pl['p_shortfall_after'] * 100)}%*."
     else:
-        line2 = f"Acceptable limit: {round(r['risk_target'] * 100)}%."
+        line2 = "" if ok else f"Acceptable limit: {round(r['risk_target'] * 100)}%."
     return f"{line1}\n\n{line2}".strip()
 
 
@@ -108,5 +120,11 @@ if __name__ == "__main__":
                                         "gross_inr": 236000, "invoice_date": "2026-10-25"}}
     pr = dict(r, scenario={**r["scenario"], "type": "payment_received"}, baseline={"worst_week": {"p_shortfall": 0.02}})
     assert "2% → *77%*" in format_reply(pr)
+    assert format_reply(r).startswith("⚠️") and "Safe terms: *60 days*" in format_reply(r) and "sharper" not in format_reply(r)
+    safe = dict(r, worst_week={**r["worst_week"], "p_shortfall": 0.03}, plan=None, scenario={**r["scenario"], "type": "status"}, order=None)
+    assert format_reply(safe).startswith("✅") and "3% chance of running short, inside your 5% limit" in format_reply(safe) and "⚠️" not in format_reply(safe)
+    cash = dict(r, order={**r["order"], "max_safe_terms_days": 0, "min_advance_pct": 30})
+    assert "Even payment on delivery isn't safe. Ask for at least *30%* advance." in format_reply(cash) and "Safe terms" not in format_reply(cash)
+    assert "_Forecasts get sharper" in format_reply(dict(r, assumptions=[{"name": "Payment timing", "value": "default curve"}]))
     assert "₹2.36 L" in entry_text(inv) and _inr(4_612_345) == "₹46.12 L"
     print("ok")

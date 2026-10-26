@@ -1,6 +1,6 @@
-# How the Kab Tak? engine works (as built, 25 Oct 2026)
+# How the Kab Tak? engine works (as built; written 25 Oct 2026, updated 26 Oct)
 
-Written from the code in `engine/` (898 lines, numpy + pandas only). Where this disagrees with `f03-build-plan.md`, this file is right. The plan describes intent; this describes what runs.
+Written from the code in `engine/` (numpy + pandas only). Since 25 Oct the engine is multi-tenant: every function takes `tenant=` (a folder under `data/tenants/`, default `mahesh-cnc`), and caches are dropped when a tenant's files change on disk; the sections below describe the demo business. Where this disagrees with `f03-build-plan.md`, this file is right. The plan describes intent; this describes what runs.
 
 ## 0. The one-paragraph version
 
@@ -64,7 +64,7 @@ All use seed 0 and 1,000 paths, so risk is (nearly) monotone in delay, terms and
 
 ## 5. Output (`answer.py`)
 
-`answer(scenario)` supports `status`, `new_order`, `delay_payment`, `expense_shock`. `sales_drop`, `supplier_terms`, `schedule_change` and `payment_received` are parsed but raise "not supported yet". It returns one JSON: today card, fan chart (P10/P50/P90 of liquidity), 30 sample paths, weekly risk, worst week, kab_tak per buyer, order terms, kab_tak curves (risk vs. days late, in 5-day steps to 60), expected-vs-contractual arrivals per buyer, a bridge that reconciles start + receipts − obligations ± drawing-power change = end, and the assumptions list. **`fixes: []` and `plan: null`**: the fix search is not built.
+`answer(scenario, tenant)` supports `status`, `new_order`, `delay_payment`, `expense_shock`, `payment_received` (a what-if: that buyer pays that much on that day), and `add_invoice` / `add_obligation` (these save an owner entry, then answer status against the data before it). `sales_drop`, `supplier_terms` and `schedule_change` are parsed but raise "not supported yet". A what-if dated today counts as tomorrow. It returns one JSON: today card, fan chart (P10/P50/P90 of liquidity), 30 sample paths, weekly risk, worst week, kab_tak per buyer, order terms, kab_tak curves (risk vs. days late, in 5-day steps to 60), expected-vs-contractual arrivals per buyer, a bridge that reconciles start + receipts − obligations ± drawing-power change = end, and the assumptions list. **`fixes: []` and `plan: null`**: the fix search is not built.
 
 ## 6. The LLM layer (`ui/llm.py`): only parses and phrases
 
@@ -75,7 +75,7 @@ All use seed 0 and 1,000 paths, so risk is (nearly) monotone in delay, terms and
 
 ## 7. Assumptions and simplifications (the honest list)
 
-- Everything is synthetic. The model is validated against its own planted values, not against real or external data. No IBM backtest, no coverage numbers, no Xero-style comparison.
+- The demo data is synthetic. The model is checked against its own planted values, and once against a public dataset (IBM sample; [validation-ibm.md](validation-ibm.md): we did not beat the published figure). Not validated on real businesses; no Xero-style comparison.
 - ρ = 0.6, the quarter-end slip of 0.3, the drawing-power margins and the 90-day rule are assumptions **[U]**, not fitted or verified.
 - One risk definition for everything: any obligation not covered by bank + undrawn drawing power. No cash buffer or CRC.
 - Stock and supplier bills are held constant over the horizon. Small daily flows (walk-in receipts, scrap) are not modelled separately.

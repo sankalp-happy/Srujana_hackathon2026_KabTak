@@ -46,13 +46,16 @@ def _check(s, tenant):
         raise ValueError("party must be a name")
 
 
-def _date(s, tenant, back=0):
-    """Scenario date, after today and within the 90-day horizon; `back` days in the past are allowed too."""
+def _date(s, tenant, back=0, today_ok=False):
+    """Scenario date, after today and within the 90-day horizon; `back` days in the past are allowed too.
+    today_ok: a what-if dated today ("spend 50,000 today") counts as tomorrow, the first day the simulation models."""
     try:
         d = datetime.strptime(s["date"], "%Y-%m-%d").date()
     except (TypeError, ValueError):
         raise ValueError("date must be YYYY-MM-DD")
     today = ledger.profile(tenant)["today"]
+    if today_ok and d == today:
+        d += timedelta(days=1)
     if not today - timedelta(days=back) < d <= today + timedelta(days=90):
         raise ValueError(f"date must fall within the last {back} or next 90 days" if back
                          else "date must fall within the next 90 days")
@@ -208,13 +211,13 @@ def answer(scenario, tenant=DEFAULT):
     elif t == "delay_payment":
         delay = {scenario["party"]: scenario["days"]}
     elif t == "payment_received":
-        d = _date(scenario, tenant, back=365)
+        d = _date(scenario, tenant, back=365, today_ok=True)
         if d <= today:
             raise ValueError("I can only model a payment expected after today; recording money already received "
                              "isn't supported yet.")
         received = {scenario["party"]: (scenario["amount_inr"], d)}
     elif t == "expense_shock":
-        extra = [{"date": _date(scenario, tenant), "label": "Unplanned expense", "kind": "expense",
+        extra = [{"date": _date(scenario, tenant, today_ok=True), "label": "Unplanned expense", "kind": "expense",
                   "amount_inr": scenario["amount_inr"]}]
 
     sim = sm.simulate(extra_delay=delay, order=order, extra_obligations=extra, received=received, tenant=tenant)
@@ -322,13 +325,38 @@ if __name__ == "__main__":
     assert answer(pay)["n_short_paths"] < st["n_short_paths"]   # cash arrives early: less risk
     assert answer({**pay, "date": "2027-01-15"})["n_short_paths"] > st["n_short_paths"]   # held back: more risk
     assert answer({"type": "status"}) == st   # the promised payment didn't leak into the cached ledger
-    for bad in ({**pay, "amount_inr": 90_000_000}, {**pay, "date": "2026-10-25"}):
+    for bad in ({**pay, "amount_inr": 90_000_000}, {**pay, "date": "2026-10-24"}):
         try:
             answer(bad)
         except ValueError as e:
             print("ValueError:", e)
         else:
             raise AssertionError(bad)
+    # "today" works: a what-if dated today counts as tomorrow (pinned demo tenant, and a new tenant whose today is the real date)
+    spend = {"type": "expense_shock", "amount_inr": 50_000, "date": "2026-10-25"}
+    assert answer(spend)["obligations"] == answer({**spend, "date": "2026-10-26"})["obligations"] and answer({**pay, "amount_inr": 500_000, "date": "2026-10-25"})
+    try:
+        answer({**spend, "date": "2026-10-24"})
+        raise AssertionError("yesterday accepted")
+    except ValueError:
+        pass
+    import tempfile
+    from pathlib import Path
+    from engine import tenants
+    real, tenants.DATA_ROOT = tenants.DATA_ROOT, Path(tempfile.mkdtemp())
+    try:
+        d = tenants.tenant_dir("new-shop")
+        d.mkdir(parents=True)
+        (d / "invoices.csv").write_text("")
+        (d / "obligations.csv").write_text("")
+        (d / "position.json").write_text('{"bank_inr": 100000, "od_limit_inr": 0, "od_drawn_inr": 0, "stock_inr": 0, "creditors_inr": 0}')
+        (d / "profile.json").write_text('{"business_name": "New Shop", "buyers": [], "today": null, "synthetic": false, "params": {}}')
+        now = date.today().isoformat()
+        r = answer({**spend, "date": now}, "new-shop")
+        assert r["obligations"][0]["date"] == (date.today() + timedelta(days=1)).isoformat() and r["obligations"][0]["amount_inr"] == 50_000
+    finally:
+        tenants.DATA_ROOT = real
+        reload()
     print("status worst week:", st["worst_week"], "kab_tak:", st["kab_tak"])
     print("hero worst week:", hero["worst_week"])
     print("hero kab_tak:", hero["kab_tak"])
