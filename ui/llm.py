@@ -14,7 +14,7 @@ URL = "https://api.groq.com/openai/v1/chat/completions"
 BUYERS = ["Buyer A", "Buyer B", "CPSE", "Small customers"]
 TYPES = ["status", "new_order", "delay_payment", "expense_shock", "sales_drop", "supplier_terms",
          "schedule_change", "payment_received", "add_invoice", "add_obligation", "list_invoices", "list_obligations"]
-KINDS = ["wages", "emi", "gst", "rent", "power", "advance_tax", "bonus", "supplier"]   # engine.ledger.KINDS
+KINDS = ["wages", "emi", "gst", "rent", "power", "advance_tax", "bonus", "supplier", "other"]   # engine.ledger.KINDS
 LANGS = {"en": "English", "mr": "Marathi (Devanagari)", "hi": "Hindi (Devanagari)"}
 try:
     from engine.ledger import GST_RATE, TODAY
@@ -139,12 +139,12 @@ type, its required fields, and what days means:
 - list_obligations: none. The owner wants to see the bills and payments they must make: "list my bills", "what payments are coming up?", "show my obligations".
 - new_order: party, amount_inr, days = payment terms offered. "Should I take Bajaj's 12 lakh order on 90-day terms?"
 - delay_payment: party, days = extra days late. "What if {a} pays a month late?"
-- expense_shock: amount_inr, date. Any one-off money going out: a repair, a purchase, a cash withdrawal, the owner taking money out, a loan repayment. "The spindle motor needs 2 lakh next week", "Can I withdraw 12 L after 5 days?". The purpose doesn't matter; never ask for it.
+- expense_shock: amount_inr, date. Any one-off money going out: a repair, a purchase, a cash withdrawal, the owner taking money out, a loan repayment. "The spindle motor needs 2 lakh next week", "Can I withdraw 12 L after 5 days?", "I have to pay a 3 lakh repair bill on 2 Nov, can I do that?", "Can we make a 20 lakh payment on 15 Nov?", "क्या हम 20 लाख का payment 15 नवंबर को कर सकते हैं?", "pay 20 lakh on 15 Nov, what is the risk?". The purpose doesn't matter; never ask for it.
 - sales_drop: pct, days = how long. supplier_terms: party, days = new terms. schedule_change: obligation, date.
 - payment_received: party, amount_inr = the cash the buyer pays, date = when (after today). A what-if that saves nothing: "{a} is paying 20 L on 3 Nov", "what if {b} clears 5 lakh next week?".
 - add_invoice: party, amount_inr = value before GST, date = invoice date (may be past). The owner tells you to record a real invoice they raised: "Add invoice: {a}, 2 lakh plus GST, dated today", "I billed {b} 3 lakh on 20 Oct, note it".
-- add_obligation: amount_inr, date = due date, obligation = the closest kind ({", ".join(KINDS)}; bills from suppliers, repairs and other vendors are supplier), party = a short label for the bill in the owner's words (e.g. "Machine repair", "Tata Steel"). The owner tells you to record a real bill they must pay: "I have a 2 lakh machine repair bill due 10 Nov, add it".
-- add_* SAVE data; every other type is a what-if that saves nothing. Use add_* only when the owner states a real invoice or bill and asks to add, record, note, save or enter it. "Can I spend / what if / should I" is a what-if (expense_shock, new_order). A bare amount and date with no ask ("Machine repair 2 lakh on 10 Nov") is unclear: set needs_clarification and ask "Should I save this as a real bill, or is it a what-if?" (or "real invoice").
+- add_obligation: amount_inr, date = due date, obligation = the closest kind ({", ".join(KINDS)}; bills from suppliers, repairs and other vendors are supplier; anything else is other), party = a short label for the bill in the owner's words (e.g. "Machine repair", "Tata Steel"; "Bill" if they gave none). Never ask for the kind or the label: pick them. The owner tells you to record a real bill they must pay: "I have a 2 lakh machine repair bill due 10 Nov, add it".
+- add_* SAVE data; every other type is a what-if that saves nothing. Use add_* ONLY when the owner explicitly asks to add, record, note, save or enter it (add, save, record, note, जोड़ो, सेव करो, दर्ज करो, नोंद करा). Any question is a what-if, even if it mentions a bill: "can I / can we / should I / is it safe / what is the risk / tell me the risk / क्या ... कर सकते हैं? / सकता हूँ?" is expense_shock (or new_order). A bare amount and date with no ask ("Machine repair 2 lakh on 10 Nov", "pay 20 lakh on 15 Nov") is unclear: set needs_clarification and ask "Should I save this as a real bill, or is it a what-if?" (or "real invoice"). If the owner answers that question with no, what-if, risk or check, it is a what-if.
 
 Rules:
 - Known buyers: {", ".join(buyers) or "none yet"}. For add_invoice use the buyer's name as said (a new buyer is fine). For delay_payment and payment_received the party must be one of these, written exactly so; if the owner names someone else, ask which of these buyers they mean, listing them all. For new_order use the name as said (e.g. "Bajaj"), or "New buyer" if unnamed.

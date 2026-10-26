@@ -39,6 +39,7 @@ except ImportError:
     supported = None
 YES = {"हो", "होय", "हां", "हाँ", "ठीक", "yes", "y", "ok", "okay", "haan", "ha", "han", "ho", "hoy", "ji", "theek"}
 NO = {"नाही", "नको", "नहीं", "नही", "no", "n", "nahi", "nahin", "nai"}
+RISK = {"risk", "risky", "safe", "check", "रिस्क", "जोखिम", "धोका"}  # "no, tell me the risk": the owner wants the what-if answered
 WORD = re.compile(r"[\wऀ-ॣ]+")  # \w alone splits Devanagari at vowel signs: "हाँ" -> "ह"
 JOIN = re.compile(r"\bjoin\b\W*((?:\d\s?){6})(?!\d)", re.I)  # "JOIN 123456", "join 123 456", "Join 1 2 3 4 5 6." (voice)
 asked: dict[str, tuple[str, str]] = {}  # sender -> (original text, our clarification question)
@@ -106,19 +107,29 @@ def answer_for(sender: str, tid: str, text: str) -> str:
     if t == "reset":
         pending[sender] = {"type": "reset"}
         return "Remove *all* invoices and bills you added and go back to the base data?\n\nReply *yes* or *no*."
+    if sender in pending and pending[sender]["type"] not in ("reset", "add_invoice") and (RISK & set(words) or "what if" in text.lower()):
+        s = pending.pop(sender)  # a what-if never saves; a bill they were asked to save becomes "what if I pay it"
+        return run(sender, tid, {**s, "type": "expense_shock"} if s["type"] == "add_obligation" else s)
     if sender in pending and t in YES:
         if pending[sender]["type"] == "reset":
             pending.pop(sender)
             return f"Back to the base data: removed {engine_reset(tenant=tid)} added entries."
         return run(sender, tid, pending.pop(sender))
     if sender in pending and t in NO:
-        pending.pop(sender)
+        s = pending.pop(sender)
+        if s["type"] == "add_obligation":  # "don't save it" almost always means "but can I pay it?": show that instead
+            return f"Not saved. Here is the risk if you pay it:\n\n{run(sender, tid, {**s, 'type': 'expense_shock'})}"
         return "OK, please say it again."
-    if sender in asked:  # the reply answers our question: parse the last exchange together, not the whole chat
-        orig, q = asked.pop(sender)
-        text = f"{orig}\nQuestion asked: {q}\nOwner's answer: {text}"
     try:
-        s = parse_scenario(text, buyers=prof["buyers"], today=prof["today"])
+        s = None
+        if sender in asked:  # the reply may answer our question, or be a whole new question that stands on its own
+            orig, q = asked.pop(sender)
+            alone = parse_scenario(text, buyers=prof["buyers"], today=prof["today"])
+            if not alone.get("needs_clarification") and (alone.get("amount_inr") or alone.get("party") or alone["type"].startswith("list_")):
+                s = alone
+            else:  # a short answer ("Buyer A", "what if"): read it with the question it answers, not the whole chat
+                text = f"{orig}\nQuestion asked: {q}\nOwner's answer: {text}"
+        s = s or parse_scenario(text, buyers=prof["buyers"], today=prof["today"])
     except Exception:  # LLM down / key missing / timed out: not the owner's fault
         return "I'm a bit busy right now, please send that again in a minute."
     if s.get("needs_clarification"):
@@ -339,10 +350,40 @@ if __name__ == "__main__":
         # (e) clarification, @lid, voice, engine errors
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, needs_clarification=True, question="Which buyer?")):
             assert say("what if he pays late?", A) == "Which buyer?"
-        with mock.patch(f"{__name__}.parse_scenario", return_value=order) as p2:
+        unclear = dict(order, needs_clarification=True, question="Which buyer?")
+        with mock.patch(f"{__name__}.parse_scenario", side_effect=[unclear, order]) as p2:   # "Buyer B" alone is unclear
             say("Buyer B", A)
             assert "Which buyer?" in p2.call_args[0][0] and "what if he pays late?" in p2.call_args[0][0]
         pending.clear()
+        # a whole new question while we wait on ours stands on its own (it used to be glued to the old question)
+        spend = dict(order, type="expense_shock", party=None, amount_inr=2_000_000, days=None, date="2026-11-15")
+        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="add_obligation", needs_clarification=True,
+                                                                          question="Which kind of bill?")):
+            say("Then pay 20 lakh on 15 Nov", A)
+        with mock.patch(f"{__name__}.parse_scenario", return_value=spend) as p3:
+            r = say("क्या हम 20 लाख का payment 15 नवंबर को कर सकते हैं?", A)
+            assert p3.call_count == 1 and "Question asked" not in p3.call_args[0][0] and "One-off expense" in r, r
+        pending.clear()
+        # "no" to saving a bill shows the risk of paying it instead of a dead end
+        bill = dict(order, type="add_obligation", party="Machine repair", obligation="supplier", amount_inr=300_000, days=None,
+                    date="2026-11-02")
+        with mock.patch(f"{__name__}.parse_scenario", return_value=bill):
+            assert "Save this?" in say("I have to pay a 3 lakh repair bill on 2 Nov", A)
+        n = ea.call_count
+        r = say("No", A)
+        assert r.startswith("Not saved. Here is the risk if you pay it") and ea.call_args[0][0]["type"] == "expense_shock" and ea.call_count == n + 1
+        assert ea.call_args[0][0]["amount_inr"] == 300_000 and ea.call_args[0][0]["date"] == "2026-11-02" and A not in pending
+        last_result.clear()
+        with mock.patch(f"{__name__}.parse_scenario", return_value=spend):   # "no, tell me the risk" at a read-back answers it
+            say("pay 20 lakh on 15 Nov", A)
+        n = ea.call_count
+        assert "Riskiest week" in say("no , tell me the risk", A) and ea.call_count == n + 1 and A not in pending
+        with mock.patch(f"{__name__}.parse_scenario", return_value=bill):
+            say("3 lakh repair bill on 2 Nov, add it", A)
+        n = ea.call_count
+        say("what if I just pay it?", A)   # answered as a what-if: the bill is not saved
+        assert ea.call_count == n + 1 and ea.call_args[0][0]["type"] == "expense_shock" and A not in pending
+        last_result.clear()
         pay = dict(order, type="payment_received", party="Buyer A", amount_inr=2000000, days=None, date="2026-11-03")
         with mock.patch(f"{__name__}.parse_scenario", return_value=pay):
             assert "Incoming payment" in say("Buyer A pays 20L on 3 Nov", A)
