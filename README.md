@@ -2,8 +2,6 @@
 
 **Srujana Tech Fest 2026 · Finance theme · Problem statement F-03: Predictive Cash-Flow Management for Small Businesses**
 
-Built during the 48-hour hackathon (24–26 Oct 2026). A working prototype: it forecasts and compares, but it does not yet suggest fixes (see [Known limitations](#known-limitations)).
-
 Live demo: https://172-198-161-228.sslip.io (sign-up, dashboard and the WhatsApp bot).
 
 **Final project report for the judges:** [docs/report/PROJECT_REPORT.md](docs/report/PROJECT_REPORT.md) ([PDF](docs/report/PROJECT_REPORT.pdf)): what was built, how it was tested, and what is not done.
