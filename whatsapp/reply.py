@@ -1,5 +1,5 @@
-"""English read-back and 2-line reply. Every number comes from the Scenario / EngineResult; nothing is computed here."""
-from datetime import date
+"""English read-back, reply and lists. Numbers come from the Scenario, the EngineResult or the ledger rows themselves (lists only count and add them)."""
+from datetime import date, timedelta
 
 _d = lambda iso: f"{date.fromisoformat(iso).day} {date.fromisoformat(iso):%b}"
 _inr = lambda n: f"₹{round(n / 1e5, 2):g} L" if n >= 1e5 else f"₹{n:,.0f}"
@@ -12,6 +12,40 @@ def entry_text(e: dict) -> str:
         return (f"Invoice {r['invoice_no']}: *{r['buyer']}*, {_inr(r['taxable_inr'])} + GST = *{_inr(r['gross_inr'])}*, "
                 f"dated {_d(r['invoice_date'])}")
     return f"Bill: *{r['label']}*, *{_inr(r['amount_inr'])}*, due {_d(r['date'])}"
+
+
+LIST_MAX = 15   # one WhatsApp message stays readable; the rest is a count and a total
+
+
+def invoice_list(inv, today, buyer=None) -> str:
+    """Invoices raised and not yet paid, oldest first (whom to chase). Owner entries are marked."""
+    o = inv[inv.paid_date.isna() & (inv.invoice_date <= today)]
+    o = (o[o.buyer == buyer] if buyer else o).sort_values("invoice_date", kind="stable")
+    who = f" by {buyer}" if buyer else ""
+    if o.empty:
+        return f"No unpaid invoices{who}."
+    lines = [f"• *{r.buyer}*: {_inr(r.gross_inr)}, {r.invoice_no}, {_d(r.invoice_date.isoformat())} ({(today - r.invoice_date).days} days)"
+             + (" · disputed" if r.disputed else "") + (" · added by you" if getattr(r, "source", "") == "owner" else "")
+             for r in o.head(LIST_MAX).itertuples()]
+    more = (f"\n…and {len(o) - LIST_MAX} more, {_inr(o.gross_inr.iloc[LIST_MAX:].sum())}. "
+            f"Ask for one buyer's invoices to see them all.") if len(o) > LIST_MAX else ""
+    return f"*Unpaid invoices{who}: {len(o)}*, total *{_inr(o.gross_inr.sum())}* (incl. GST), oldest first\n\n" + "\n".join(lines) + more
+
+
+def bill_list(obl, today, days=30) -> str:
+    """Bills and payments due after today: the next `days` in full, then a count and total for the rest."""
+    o = obl[obl.date > today].sort_values("date", kind="stable")
+    if o.empty:
+        return "No upcoming bills. Tell me one to add it, e.g. *30 thousand rent due 1 Nov, add it*."
+    soon = o[o.date <= today + timedelta(days=days)]
+    later = o.iloc[len(soon):]
+    lines = [f"• {_d(r.date.isoformat())}: *{r.label}*, {_inr(r.amount_inr)}" + (" · added by you" if getattr(r, "source", "") == "owner" else "")
+             for r in soon.head(LIST_MAX).itertuples()]
+    more = len(soon) - len(lines)
+    tail = (f"\n…and {more} more in these {days} days." if more > 0 else "") + (
+        f"\nAfter that: {len(later)} more, {_inr(later.amount_inr.sum())}, to {_d(later.date.iloc[-1].isoformat())}." if len(later) else "")
+    return (f"*Bills due in the next {days} days: {len(soon)}*, total *{_inr(soon.amount_inr.sum())}*\n\n" + "\n".join(lines) + tail
+            if len(soon) else f"Nothing due in the next {days} days." + tail)
 
 
 def _group(n) -> str:  # Indian digit grouping: 2000000 -> 20,00,000
@@ -127,4 +161,21 @@ if __name__ == "__main__":
     assert "Even payment on delivery isn't safe. Ask for at least *30%* advance." in format_reply(cash) and "Safe terms" not in format_reply(cash)
     assert "_Forecasts get sharper" in format_reply(dict(r, assumptions=[{"name": "Payment timing", "value": "default curve"}]))
     assert "₹2.36 L" in entry_text(inv) and _inr(4_612_345) == "₹46.12 L"
+    import pandas as pd   # lists: unpaid raised invoices oldest first, capped; bills split at 30 days
+    t0 = date(2026, 10, 25)
+    inv = pd.DataFrame([{"invoice_no": f"I{k}", "buyer": "A" if k % 2 else "B", "invoice_date": t0 - timedelta(days=k + 1),
+                         "gross_inr": 100_000, "paid_date": None, "disputed": 0, "source": "synthetic"} for k in range(20)]
+                       + [{"invoice_no": "PAID", "buyer": "A", "invoice_date": date(2026, 9, 1), "gross_inr": 9, "paid_date": date(2026, 9, 9),
+                           "disputed": 0, "source": "synthetic"},
+                          {"invoice_no": "LATER", "buyer": "A", "invoice_date": date(2026, 11, 1), "gross_inr": 9, "paid_date": None,
+                           "disputed": 0, "source": "synthetic"}])
+    il = invoice_list(inv, t0)
+    assert "Unpaid invoices: 20*, total *₹20 L*" in il and "PAID" not in il and "LATER" not in il and il.count("• ") == LIST_MAX
+    assert il.index("I19,") < il.index("I14,") and "…and 5 more, ₹5 L" in il   # oldest first, the rest counted
+    assert "by A: 10*" in invoice_list(inv, t0, "A") and invoice_list(inv, t0, "Nobody") == "No unpaid invoices by Nobody."
+    obl = pd.DataFrame([{"date": t0 + timedelta(days=d), "label": f"L{d}", "kind": "rent", "amount_inr": 1000} for d in (0, 5, 30, 31, 60)])
+    bl = bill_list(obl, t0)
+    assert "next 30 days: 2*, total *₹2,000*" in bl and "L0" not in bl and "After that: 2 more, ₹2,000, to 24 Dec." in bl, bl
+    assert bill_list(obl.iloc[:1], t0).startswith("No upcoming bills")
+    assert bill_list(obl.iloc[3:], t0).startswith("Nothing due in the next 30 days.")
     print("ok")

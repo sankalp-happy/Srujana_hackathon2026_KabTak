@@ -13,7 +13,7 @@ FALLBACK = "openai/gpt-oss-20b"   # separate free-tier rate limit; used when MOD
 URL = "https://api.groq.com/openai/v1/chat/completions"
 BUYERS = ["Buyer A", "Buyer B", "CPSE", "Small customers"]
 TYPES = ["status", "new_order", "delay_payment", "expense_shock", "sales_drop", "supplier_terms",
-         "schedule_change", "payment_received", "add_invoice", "add_obligation"]
+         "schedule_change", "payment_received", "add_invoice", "add_obligation", "list_invoices", "list_obligations"]
 KINDS = ["wages", "emi", "gst", "rent", "power", "advance_tax", "bonus", "supplier"]   # engine.ledger.KINDS
 LANGS = {"en": "English", "mr": "Marathi (Devanagari)", "hi": "Hindi (Devanagari)"}
 try:
@@ -135,6 +135,8 @@ Copy values only from what the owner said; never guess an amount, a number of da
 
 type, its required fields, and what days means:
 - status: none. "Can I pay wages on the 7th?", "how are we doing?"
+- list_invoices: party = a buyer only if the owner names one, else null. The owner wants to see invoices buyers have not paid yet: "show my invoices", "who owes me money?", "list {a}'s pending bills".
+- list_obligations: none. The owner wants to see the bills and payments they must make: "list my bills", "what payments are coming up?", "show my obligations".
 - new_order: party, amount_inr, days = payment terms offered. "Should I take Bajaj's 12 lakh order on 90-day terms?"
 - delay_payment: party, days = extra days late. "What if {a} pays a month late?"
 - expense_shock: amount_inr, date. Any one-off money going out: a repair, a purchase, a cash withdrawal, the owner taking money out, a loan repayment. "The spindle motor needs 2 lakh next week", "Can I withdraw 12 L after 5 days?". The purpose doesn't matter; never ask for it.

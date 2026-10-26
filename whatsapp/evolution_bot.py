@@ -31,7 +31,7 @@ except ImportError:
                 "date": None, "obligation": None, "transcript": text,
                 "needs_clarification": False, "question": None}
     transcribe = None
-from whatsapp.reply import entry_text, format_reply, readback
+from whatsapp.reply import bill_list, entry_text, format_reply, invoice_list, readback
 
 try:
     from engine.answer import SUPPORTED as supported
@@ -126,9 +126,14 @@ def answer_for(sender: str, tid: str, text: str) -> str:
         return s["question"]
     if not s["type"].startswith("add_") and no_data(tid):  # a what-if on an empty ledger would say "0% risk"
         return f"I don't have any of your numbers yet. {START}"
+    if s["type"] in ("list_invoices", "list_obligations"):  # reads the ledger, saves nothing: answer at once
+        inv, obl, _ = ledger.load(tid)
+        if s["type"] == "list_obligations":
+            return bill_list(obl, prof["today"])
+        return invoice_list(inv, prof["today"], s.get("party") if s.get("party") in prof["buyers"] else None)
     if supported is not None and s["type"] not in supported:  # don't ask to confirm what the engine will refuse
         return ("I can't model that yet.\nI can answer: *status*, *new order*, *buyer pays late*, *one-off expense*, "
-                "*payment from a buyer*, or save an *invoice* / *bill* you tell me about.\n"
+                "*payment from a buyer*, save an *invoice* / *bill* you tell me about, or *list* your invoices or bills.\n"
                 f"Buyers I know: {', '.join(prof['buyers'])}.")
     if s["type"] == "status":  # saves nothing: answer at once
         return run(sender, tid, s)
@@ -389,6 +394,21 @@ if __name__ == "__main__":
         c.post("/webhook", json=payload({"documentMessage": {"fileName": "books.xlsx"}}, A))
         assert st.call_count == n + 1 and onboard in st.call_args[0][1] and "Excel" in st.call_args[0][1]
         assert c.post("/webhook", content=b"not json").status_code == 400 and c.post("/webhook", json=[1]).status_code == 400
+        # (i) list invoices / bills: read straight from the ledger, no engine run, no confirm step
+        import pandas as pd
+        inv_df = pd.DataFrame([{"invoice_no": "INV-1", "buyer": "Buyer A", "invoice_date": date(2026, 9, 1), "gross_inr": 236000,
+                                "paid_date": None, "disputed": 0, "source": "owner"}])
+        obl_df = pd.DataFrame([{"date": date(2026, 11, 7), "label": "Wages", "kind": "wages", "amount_inr": 340000}])
+        pending.pop(A, None)
+        n = ea.call_count
+        with mock.patch.object(ledger, "load", return_value=(inv_df, obl_df, {})) as ld:
+            with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="list_invoices", party=None)):
+                r = say("show my invoices", A)
+            assert "Unpaid invoices: 1" in r and "INV-1" in r and "added by you" in r and ld.call_args[0][0] == "biz-a", r
+            with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="list_obligations", party=None)):
+                assert "*Wages*" in say("list my bills", A)
+        assert ea.call_count == n and A not in pending
+
         nd.return_value = True  # signed up on the website with no spreadsheet: ask for numbers, don't forecast nothing
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
             c.post("/webhook", json=payload({"conversation": "how are we doing?"}, A))
