@@ -1,47 +1,57 @@
-# Multi-tenant demo: two phones, 90 seconds
+# Demo: sign up, link a number, ask on WhatsApp (about 2 minutes)
 
-One bot, one engine, one page, and each business sees only its own ledger. All data is synthetic and says so.
+One bot, one engine, one site; each business sees only its own ledger. Live at **https://172-198-161-228.sslip.io**, bot number **+91 6205 559 096**. All demo data is synthetic and says so.
 
-## Setup (before the room fills)
+## The flow
+
+1. **Landing page** (`/`): the owner taps *Sign up*.
+2. **`/onboard`, step 1:** name, business name, their WhatsApp number (10 digits), optional bank balance.
+3. **Step 2, two options:**
+   - **Upload the Kab Tak? Excel** (`invoices`, `obligations`, `position` sheets). The page offers a blank template and a demo workbook of a made-up Pune CNC shop (`ui/kabtak-demo.xlsx`). The page shows what loaded and the first forecast. **Upload before opening WhatsApp:** once the number is linked, the page can no longer upload.
+   - **Skip the upload:** a yellow disclaimer says forecasts rest on standard assumptions until there is data; tick it and the Terms to enable *Open WhatsApp*.
+4. **Open WhatsApp.** The button opens the bot with "What is the status of my current cash flow?" ready to send. The first message from the number given at sign-up **links that number** to the business; the bot replies "Welcome, *<business>*! This number is now linked" and answers the question. (Fallback: `JOIN <6-digit code>`.)
+5. **Ask.** Text or voice note; the bot reads back what it understood, the owner says yes or no, then it answers with the riskiest week and a chart. "What is my status?" is answered at once; everything else asks for the yes first.
+6. **An unknown number** that messages the bot gets the sign-up link and no data.
+
+## Setup before the room fills
+
+- Open the site once on the demo laptop and on the phone, so the first load is warm.
+- Phone 1 (the "owner"): a number nobody has signed up with. Phone 2: a number you will link by hand to `mahesh-cnc`. Phone 3: a stranger (any other number).
+- Link a phone by hand on the VM (digits only, with country code):
 
 ```bash
-python3 data/make_demo_tenants.py                      # rebuilds shree-textiles, sai-snacks and the sample file (~2 s)
-python3 -m engine.tenants link <PHONE2> mahesh-cnc     # phone 2 = Mahesh's CNC shop (digits only, e.g. 919999999999)
-python3 -m engine.tenants link <PHONE4> sai-snacks     # optional: the 3-month-old business, for Q&A
-uvicorn whatsapp.evolution_bot:app --port 8001         # the bot
-python3 ui/server.py                                   # onboarding page at http://localhost:8000/onboard
+cd deploy && docker compose exec bot python -m engine.tenants link 919999999999 mahesh-cnc
 ```
 
-- Phone 1 is **not** linked to anything. Phone 3 is a number nobody has linked. Keep the sample file open in a Finder window: `data/samples/kolhapur_auto_spares_sales_register.xlsx`.
-- Check once: `python3 -m engine.tenants` lists the links. Rehearse the commit step so the join code comes from a fresh onboarding, not a rehearsal one.
-- Suggested recurring bills to type on the page: wages ₹1,20,000 on the 7th, EMI ₹40,000 on the 5th, rent ₹30,000 on the 1st; bank ₹2,50,000.
-- Plan B if the upload fails live: `python3 -m engine.tenants link <PHONE1> shree-textiles`, then ask the same question in Marathi. Shree has no overdraft, and its tightest week is early-mid November (about ₹2 L short on a point estimate).
+- Have `ui/kabtak-demo.xlsx` in Downloads (also on the `/onboard` page). The other demo businesses, `shree-textiles` (no overdraft, 5 buyers) and `sai-snacks` (3 months old, few paid invoices) are linked the same way if you want a different shape.
+- Plan B if the upload fails live: sign up and skip the upload with the disclaimer; or link Phone 1 by hand to `shree-textiles` with the command above and ask the same question.
+- Rehearse once with a throwaway sign-up so the demo number's first message is a real first message.
 
 ## Script
 
 | Time | Do | Say |
 |---|---|---|
-| 0:00 | Phone 3 (unknown number) sends "hi". | "A stranger messages the bot. It never answers from anyone's data. It sends the onboarding link." |
-| 0:10 | Open `/onboard`, drop the Tally file (a messy export of a fictional business: Kolhapur Auto Spares). Show the preview: the 5 bad rows flagged, 95 invoices, 5 buyers. Type the three recurring bills. Commit. | "A real Tally register, with a blank row, a credit note, a duplicate, a bad date and a total row. The model only maps column names. Parsing and GST maths are plain code." |
-| 0:40 | Phone 1 sends `JOIN <code>`. The bot replies with a welcome that names the business. | "One code, and this number now belongs to Kolhapur Auto Spares." |
-| 0:50 | Phone 1: "Can I pay wages next week?" | "Its own invoices, its own bills, its own payment history." |
-| 1:05 | Phone 2 (linked to `mahesh-cnc`): the same words. | "Same question, same bot, a different business." |
-| 1:20 | Put both screens side by side. | "Two businesses, two answers. Each one is computed by the simulator from that tenant's ledger. The LLM only parses and phrases." |
+| 0:00 | Phone 3 sends "hi" to the bot. | "A stranger messages the bot. It never answers from anyone's data. It sends the sign-up link." |
+| 0:10 | On the laptop, open `/onboard`, fill step 1 with Phone 1's number, continue. Upload `kabtak-demo.xlsx`. | "The owner's invoices and bills as an Excel file. Parsing and GST maths are plain code; bad rows are skipped and listed, never guessed. The page shows the first forecast." |
+| 0:40 | Tap *Open WhatsApp* on Phone 1 and send the prefilled message. | "The first message from this number links it to this business. No code to type." |
+| 0:55 | Phone 1: "What if Buyer A pays 30 days late?" Say yes at the read-back. | "It reads back what it understood before running anything. Then the riskiest week and how many days late Buyer A can be." |
+| 1:20 | Phone 2 (linked to `mahesh-cnc`): the same words. | "Same question, same bot, a different business." |
+| 1:40 | Both screens side by side. | "Each answer is computed by the simulator from that business's own ledger. The language model only parses and phrases." |
 
 ## What the judges should notice
 
-- **Different answers to the same question.** Mahesh has an overdraft with headroom. The new business has none, so a shortfall can't be covered.
-- **Isolation.** Phone 3 got a link, not data. Phone 1 can't see Mahesh's buyers (ask it about "Buyer A": it doesn't know the name).
-- **Honesty about thin data.** A new business with a few paid invoices gets a pooled or default payment curve, and the answer says so in its assumptions. Show `sai-snacks` here if asked: 8 paid invoices in 3 months.
-- **Nothing is hard-wired.** No overdraft, 2 to 5 buyers, a different season and a different GST rate all go through the same engine.
-- **Messy input, not clean fixtures.** The file is the kind a CA exports, and the preview says exactly which rows it refused.
+- **Different answers to the same question**, because the ledgers differ.
+- **Isolation.** Phone 3 got a link, not data.
+- **Honesty about thin data.** With no upload, the page says forecasts rest on standard assumptions, and replies for a thin ledger say forecasts sharpen as invoices are added.
+- **Nothing is hard-wired.** No overdraft, 1 to about 20 buyers, other GST rates all go through the same engine.
+- **What is not there yet:** fix suggestions (the product shows the risk, the riskiest week and how late each buyer can pay, not how to fix it), replies in Hindi or Marathi (English only), a Tally import.
 
-## Demo tenants
+## Demo businesses
 
-| Tenant | Shape |
+| Business | Shape |
 |---|---|
-| `mahesh-cnc` | CNC shop, Pune. ₹42 L overdraft, 4 buyers, quarter-end slips. |
-| `shree-textiles` | Power-loom fabric trader, Ichalkaranji (Marathi owner). No overdraft, bank ₹11 L, 5 buyers: Mehta Wholesale pays at ~75 days, Counter sales pays the next day. Sales peak Nov–Feb; the engine puts a ~23% shortfall risk on the week of 14 Dec (Mahesh: 2%). |
-| `sai-snacks` | Snack maker, Pune, 3 months old. 3 buyers, 8 paid invoices, bank ₹2 L. Every buyer uses the default payment curve (too little history); ~17% risk in January. |
+| `mahesh-cnc` | CNC shop, Pune. ₹42 L overdraft, 4 buyers, quarter-end slips. "Today" is pinned to 25 Oct 2026, so its numbers stay put. |
+| `shree-textiles` | Power-loom fabric trader, Ichalkaranji. No overdraft, bank ₹11 L, 5 buyers: one pays at about 75 days, one the next day. Sales peak Nov–Feb. |
+| `sai-snacks` | Snack maker, Pune, 3 months old. 3 buyers, 8 paid invoices, bank ₹2 L. Every buyer uses the default payment curve (too little history). |
 
-Numbers in the answers come from the engine on the day. Rehearse once, and if a number here disagrees with the engine, the engine wins.
+Numbers in the answers come from the engine on the day. If a number written anywhere disagrees with the engine, the engine wins. A business made by uploading `kabtak-demo.xlsx` is dated by the real date, not 25 Oct, so its open invoices look a day older for every day after the 25th and its numbers differ slightly from `mahesh-cnc` (status risk is still 2%, but the riskiest week starts 10 Nov, not 9 Nov, and buyers owe ₹49.7 L, not ₹47.1 L). The engine labels it "ledger uploaded by the owner" because it cannot tell a demo file from a real one, so say it is the demo workbook.

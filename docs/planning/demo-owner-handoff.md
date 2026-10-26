@@ -2,6 +2,8 @@
 
 > 25 Oct 2026. The video round is cancelled, so the live demo in front of the jury is everything. **Your job is to make sure it works first time, and that every number we say is true.** You don't write code. You test, write things down, and send bugs to the right person.
 
+> **Update 26 Oct: what changed since this was written.** The site and bot are live on one VM: https://172-198-161-228.sslip.io, bot **+91 6205 559 096**. The demo flow is now landing page → `/onboard` → upload `kabtak-demo.xlsx` (or skip with the disclaimer) → WhatsApp first message links the number; run it from [multi-tenant-demo.md](multi-tenant-demo.md). Test the website and WhatsApp paths, not only the dashboard. Still true: the engine wins over any written number, fix search is **not** built (never imply it is), there is no Tally import, and WhatsApp replies are English only. To link a phone by hand: `cd deploy && docker compose exec bot python -m engine.tenants link <digits> mahesh-cnc`.
+
 ## Who does what
 
 | Person | Owns | Send them |
@@ -27,11 +29,12 @@
 
 ## Read first (20 min)
 
-- [round2-rehearsal.md](round2-rehearsal.md): the current demo script (§2), plan B, the numbers from the last engine run (§1), and 10 jury answers (§3). **Your runbook builds on this; don't start from scratch.**
+- [multi-tenant-demo.md](multi-tenant-demo.md): the current end-to-end flow (website, upload, WhatsApp linking). Read this first.
+- [round2-rehearsal.md](round2-rehearsal.md): the dashboard demo script (§2), plan B, the numbers from the last engine run (§1), and 10 jury answers (§3). **Your runbook builds on this; don't start from scratch.**
 - [round2-done-next.md](round2-done-next.md): what's built and what isn't.
 - [engine-how-it-works.md](engine-how-it-works.md): skim only, so you can answer "how does it work?".
 
-**Run it locally:** from the repo root, `docker compose up --build` (or `python3 ui/server.py`), then open http://localhost:8000. The deploy person will give you the hosted URL.
+**Run it locally:** from the repo root, `docker compose up --build` (or `python3 ui/server.py`), then open http://localhost:8000. The hosted site is https://172-198-161-228.sslip.io.
 
 ---
 
@@ -77,7 +80,9 @@ It must have:
 | 4 | पुढच्या १५ दिवसांत २ लाख खर्च करू शकतो का? | expense, ₹2,00,000 |
 | 5 | Same as 1, in Hindi and in English | same as 1 |
 | 6 | Something unclear, e.g. "what if he pays late?" | bot asks **one** follow-up question |
-| 7 | Say "नाही" (no) at the read-back | bot asks again, doesn't run |
+| 7 | Say "नाही" (no) at the read-back; also "हाँ", "होय", "Haan", "nahi" | no: bot asks again, doesn't run; yes: it runs |
+| 8 | Send an Excel file as a WhatsApp attachment | bot says files are uploaded on the sign-up page and gives the link |
+| 9 | "what is the status?" | answered at once, no confirm step |
 
 **2b. Log every message** in `docs/demo/whatsapp-test-log.md`:
 
@@ -123,7 +128,8 @@ Known traps to check:
 - **"Wages fail":** the 51% answer is about *a payment* failing (bar stock and power), not wages. Say "a payment".
 - **Turnover:** the persona says ₹4.2 cr; the engine is ~₹2.9 cr.
 - **Any claim that Tally or Zoho "can't forecast":** both can. Cut it.
-- **Any slide implying we already recommend fixes:** we don't yet.
+- **Any slide implying we already recommend fixes:** we don't yet. Same for "finds the cheapest fix" and "largest purchase on each date": the product shows neither.
+- **Which risk figure is quoted:** WhatsApp and the dashboard show the *worst week's* chance (2% today); "34 of 1,000 paths (3.4%)" is the 90-day overall figure. Pick one when you speak.
 
 **Done when:** every row is OK or has been sent to its owner.
 

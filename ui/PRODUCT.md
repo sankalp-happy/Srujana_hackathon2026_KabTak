@@ -18,7 +18,7 @@ Static HTML/CSS/JS page (charts in SVG), served by a stdlib Python server (`ui/s
 
 ## Purpose
 
-Kab Tak? ("how long?") is predictive cash flow for a micro-enterprise. A 1,000-path Monte Carlo of available liquidity (bank + undrawn drawing power) gives weekly shortfall risk, how many days each buyer can pay late before a shortfall, the longest safe terms for a new order, and the cheapest set of fixes that brings risk under the 5% target.
+Kab Tak? ("how long?") is predictive cash flow for a micro-enterprise. A 1,000-path Monte Carlo of available liquidity (bank + undrawn drawing power) gives weekly shortfall risk, how many days each buyer can pay late before a shortfall, and the longest safe terms for a new order. The cheapest set of fixes that brings risk under the 5% target is the next build; it is not built yet.
 
 ## Constraints
 

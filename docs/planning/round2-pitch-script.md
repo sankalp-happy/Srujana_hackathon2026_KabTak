@@ -15,25 +15,25 @@ Two. We give a chance, not one number. We play out 1,000 possible futures and te
 
 Three. Our bank limit moves. It shrinks when invoices get older than 90 days. TallyPrime takes a fixed limit that you type in.
 
-Four. We answer the decision. We tell you the largest purchase you can pay for on each date, and how many days late each buyer can be before the risk is too high.
+Four. We answer the decision. We tell you how many days late each buyer can be before the risk is too high, and for a new order, the longest payment terms and the smallest advance that keep it safe.
 
 ## 4. How it works (35 seconds)
 First, we learn how late each buyer pays. We use a standard method called Kaplan-Meier. It looks at every past invoice, and it counts the unpaid ones as "still waiting", not as paid.
 
 Second, we play out the next 90 days a thousand times. In each run, we pick a payment day for every invoice from that buyer's history. Then we go day by day: payments come in, then wages, loan instalments, GST and material bills go out. If a run cannot pay a bill, even using the bank limit, that run failed. The chance of missing a payment is the share of runs that failed.
 
-Third, to find the safe answer, we try a value, halve the range, and repeat. That gives us how many days late a buyer can be and the largest purchase we can afford on each date.
+Third, to find the safe answer, we try a value, halve the range, and repeat. That gives us how many days late a buyer can be, and the safest terms for a new order.
 
-It is built in Python with numpy and pandas, about 900 lines, and it runs with one Docker command. A language model only reads the question and writes the answer. It never does the maths, and any number it writes that the program did not produce is deleted.
+It is built in Python with numpy and pandas, about 1,300 lines for the engine, and it runs with one Docker command. A language model only reads the question and writes the answer. It never does the maths, and any number it writes that the program did not produce is deleted.
 
 ## 5. The result (20 seconds)
-If he buys the machine in 15 days, the chance of missing a payment is 99.8%. Today, without the machine, it is 3.4%. We then tell him when it is safe. A ₹10 lakh machine becomes safe on 17 January. Before that, the most he can pay for is under ₹1 lakh in November, ₹5.2 lakh by Christmas, and ₹7.5 lakh by 8 January.
+The tightest week today is the week of 9 November, and the chance of missing a payment in it is 2%. If he buys the machine on 9 November, that same week jumps to 98%. The week we show is the worst week, not the whole 90 days. Over all 90 days, 998 of the 1,000 runs miss a payment at some point, against 34 today. He sees that before he signs the cheque.
 
 ## 6. What we do not have (15 seconds)
-Our data is made up, and the ₹10 lakh is an example. We treat the machine as one payment from cash and the bank limit, with no loan. We have not tested on real businesses. We do not read Tally or Zoho files. We do not yet suggest fixes, so that is what we build next.
+Our data is made up, and the ₹10 lakh is an example. We treat the machine as one payment from cash and the bank limit, with no loan. We have not tested on real businesses. We do not read Tally or Zoho files; owners upload our Excel template or type on WhatsApp. We do not yet suggest fixes, so that is what we build next.
 
 ## Close
-Tally and Zoho tell you what happened. Kab Tak? tells you what is likely to happen, and when you can afford the purchase.
+Tally and Zoho tell you what happened. Kab Tak? tells you what is likely to happen, and which week you could run short.
 
 ---
 
@@ -44,5 +44,5 @@ Tally and Zoho tell you what happened. Kab Tak? tells you what is likely to happ
 - Tech stack: Python 3.12, numpy 1.26, pandas 2.2, Python's built-in web server, plain HTML/CSS/JavaScript, Docker. The engine has no machine-learning library. Model calls: Groq gpt-oss-120b for words, OpenRouter scribe-v2 for speech with Groq Whisper as backup.
 - Methods: Kaplan-Meier per buyer; payment days drawn from the curve (only the part after the invoice's age); one shared random draw per buyer with a link of 0.6 (assumption); a 30% chance per run that quarter-end payments slip a week (assumption); a day-by-day cash loop over 1,000 runs; bank limit recomputed every Monday from stock and invoices under 90 days; search by halving the range on fixed random numbers.
 - We have not used Tally or Zoho. Check their live product before the jury.
-- Our own numbers are from running the engine on synthetic data: 3.4% today, 99.8% for a ₹10 lakh payment on day 15 (998 of 1,000 runs), first safe date 17 Jan 2027 (day 84), largest safe payment about ₹0.4 L on day 15, ₹0.7 L on days 30 and 45, ₹5.2 L on day 60, ₹7.5 L on day 75, ₹10.8 L on day 85. Each is found by trying prices and halving the range.
+- Our own numbers are from running the engine on the synthetic Pune shop ("today" 25 Oct 2026, 1,000 runs). **Worst-week** risk, which is what WhatsApp and the dashboard show: 2% today (week of 9 Nov), 98% with a ₹10 lakh payment on 9 Nov, 10% with ₹2 lakh. **Overall 90-day** risk: 34 of 1,000 runs (3.4%) today, 998 of 1,000 with the ₹10 lakh payment, 143 of 1,000 with ₹2 lakh. Quote one kind at a time. The product does not compute a first safe date or the largest purchase per date; an earlier research script did, and those figures are not in the product, so they are not in the pitch.
 - The machine is modelled as a one-time expense (the engine's expense scenario). Loans, instalments and part payments are not in the answer.
