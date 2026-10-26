@@ -45,7 +45,7 @@ services:
     env_file: [../.env, .env.evolution]
     environment:
       EVOLUTION_URL: http://evolution:8080
-      ONBOARD_URL: https://${SITE}/onboard
+      ONBOARD_URL: https://${SITE}   # the homepage; its Sign up buttons lead to /onboard
     volumes: [../data:/app/data]
     depends_on: [evolution]
 
