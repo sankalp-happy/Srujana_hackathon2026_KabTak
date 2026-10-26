@@ -1,0 +1,241 @@
+{
+  "dataset": "IBM Watson sample Accounts Receivable (external public dataset we didn't generate)",
+  "protocol": {
+    "origins": [
+      "2013-02-01",
+      "2013-03-01",
+      "2013-04-01",
+      "2013-05-01",
+      "2013-06-01",
+      "2013-07-01",
+      "2013-08-01",
+      "2013-09-01",
+      "2013-10-01",
+      "2013-11-01"
+    ],
+    "horizon_weeks": 8,
+    "paths": 2000,
+    "band": "P10-P90 of simulated weekly cash",
+    "rho_engine": 0.6,
+    "min_events_own_km": 5,
+    "seed": 20261025
+  },
+  "n_open_rows": 905,
+  "n_not_yet_due_rows": 784,
+  "n_rows_using_pooled_km": 0,
+  "weeks": 80,
+  "mean_weekly_actual_cash": 693.5,
+  "cashcast_published": {
+    "weekly_cash_coverage_80": 0.675,
+    "weeks": 80,
+    "per_invoice_coverage_80": 0.771,
+    "open_rows": 905,
+    "not_yet_due_rows": 784,
+    "mean_weekly_actual_cash": 693.5
+  },
+  "rows": {
+    "ours, invoices independent": {
+      "per_invoice_coverage_80": 0.71,
+      "per_invoice_median_abs_err_days": 5.0,
+      "per_invoice_mean_band_width_days": 50.2,
+      "weekly_cash_coverage_80": 0.613,
+      "weekly_cash_coverage_95ci_naive": [
+        0.503,
+        0.712
+      ],
+      "weekly_cash_coverage_by_origin": [
+        0.625,
+        0.875,
+        0.125,
+        0.5,
+        0.625,
+        0.75,
+        0.625,
+        0.75,
+        0.625,
+        0.625
+      ],
+      "weekly_band_width_mean": 406.2,
+      "weekly_band_width_pct_of_mean_actual": 0.586,
+      "weekly_cash_mae": 192.2,
+      "weekly_crps": 142.3,
+      "weeks_below_band": 14,
+      "weeks_above_band": 17
+    },
+    "ours, shared buyer shock": {
+      "per_invoice_coverage_80": 0.71,
+      "per_invoice_median_abs_err_days": 5.0,
+      "per_invoice_mean_band_width_days": 50.2,
+      "weekly_cash_coverage_80": 0.625,
+      "weekly_cash_coverage_95ci_naive": [
+        0.515,
+        0.723
+      ],
+      "weekly_cash_coverage_by_origin": [
+        0.625,
+        0.875,
+        0.125,
+        0.625,
+        0.625,
+        0.75,
+        0.625,
+        0.75,
+        0.625,
+        0.625
+      ],
+      "weekly_band_width_mean": 412.2,
+      "weekly_band_width_pct_of_mean_actual": 0.594,
+      "weekly_cash_mae": 191.7,
+      "weekly_crps": 141.7,
+      "weeks_below_band": 13,
+      "weeks_above_band": 17
+    },
+    "sens: shared shock rho=0.3": {
+      "per_invoice_coverage_80": 0.71,
+      "per_invoice_median_abs_err_days": 5.0,
+      "per_invoice_mean_band_width_days": 50.2,
+      "weekly_cash_coverage_80": 0.625,
+      "weekly_cash_coverage_95ci_naive": [
+        0.515,
+        0.723
+      ],
+      "weekly_cash_coverage_by_origin": [
+        0.625,
+        0.875,
+        0.125,
+        0.5,
+        0.75,
+        0.75,
+        0.625,
+        0.75,
+        0.625,
+        0.625
+      ],
+      "weekly_band_width_mean": 406.3,
+      "weekly_band_width_pct_of_mean_actual": 0.586,
+      "weekly_cash_mae": 192.1,
+      "weekly_crps": 142.1,
+      "weeks_below_band": 13,
+      "weeks_above_band": 17
+    },
+    "sens: shared shock rho=0.9": {
+      "per_invoice_coverage_80": 0.71,
+      "per_invoice_median_abs_err_days": 5.0,
+      "per_invoice_mean_band_width_days": 50.2,
+      "weekly_cash_coverage_80": 0.625,
+      "weekly_cash_coverage_95ci_naive": [
+        0.515,
+        0.723
+      ],
+      "weekly_cash_coverage_by_origin": [
+        0.625,
+        0.875,
+        0.125,
+        0.625,
+        0.625,
+        0.75,
+        0.625,
+        0.75,
+        0.625,
+        0.625
+      ],
+      "weekly_band_width_mean": 420.8,
+      "weekly_band_width_pct_of_mean_actual": 0.607,
+      "weekly_cash_mae": 192.3,
+      "weekly_crps": 141.8,
+      "weeks_below_band": 13,
+      "weeks_above_band": 17
+    },
+    "diag: pooled KM, independent": {
+      "per_invoice_coverage_80": 0.82,
+      "per_invoice_median_abs_err_days": 7.0,
+      "per_invoice_mean_band_width_days": 25.5,
+      "weekly_cash_coverage_80": 0.762,
+      "weekly_cash_coverage_95ci_naive": [
+        0.659,
+        0.842
+      ],
+      "weekly_cash_coverage_by_origin": [
+        0.875,
+        1.0,
+        0.5,
+        0.75,
+        0.625,
+        1.0,
+        0.625,
+        1.0,
+        0.625,
+        0.625
+      ],
+      "weekly_band_width_mean": 446.5,
+      "weekly_band_width_pct_of_mean_actual": 0.644,
+      "weekly_cash_mae": 161.3,
+      "weekly_crps": 113.3,
+      "weeks_below_band": 7,
+      "weeks_above_band": 12
+    },
+    "paid on the due date + residual spread": {
+      "per_invoice_coverage_80": 0.822,
+      "per_invoice_median_abs_err_days": 7.0,
+      "per_invoice_mean_band_width_days": 25.4,
+      "weekly_cash_coverage_80": 0.775,
+      "weekly_cash_coverage_95ci_naive": [
+        0.672,
+        0.853
+      ],
+      "weekly_cash_coverage_by_origin": [
+        0.875,
+        1.0,
+        0.5,
+        0.75,
+        0.625,
+        1.0,
+        0.625,
+        1.0,
+        0.75,
+        0.625
+      ],
+      "weekly_band_width_mean": 444.6,
+      "weekly_band_width_pct_of_mean_actual": 0.641,
+      "weekly_cash_mae": 157.8,
+      "weekly_crps": 110.8,
+      "weeks_below_band": 7,
+      "weeks_above_band": 11
+    },
+    "customer average delay + residual spread": {
+      "per_invoice_coverage_80": 0.748,
+      "per_invoice_median_abs_err_days": 5.0,
+      "per_invoice_mean_band_width_days": 17.2,
+      "weekly_cash_coverage_80": 0.725,
+      "weekly_cash_coverage_95ci_naive": [
+        0.619,
+        0.811
+      ],
+      "weekly_cash_coverage_by_origin": [
+        0.625,
+        1.0,
+        0.5,
+        0.875,
+        0.625,
+        0.875,
+        0.625,
+        0.875,
+        0.625,
+        0.625
+      ],
+      "weekly_band_width_mean": 421.6,
+      "weekly_band_width_pct_of_mean_actual": 0.608,
+      "weekly_cash_mae": 169.1,
+      "weekly_crps": 120.6,
+      "weeks_below_band": 10,
+      "weeks_above_band": 12
+    }
+  },
+  "shock_diagnostic": {
+    "same_customer_same_month_corr": 0.076,
+    "pairs_month": 1307,
+    "same_customer_same_quarter_corr": 0.082,
+    "pairs_quarter": 3855,
+    "note": "pairwise correlation of within-customer standardised delay; ~0 means no shared shock to find"
+  }
+}
