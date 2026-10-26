@@ -18,7 +18,7 @@ An owner signs up on a website, optionally uploads an Excel workbook of invoices
 
 The language model only turns speech or text into a typed question and phrases the answer. **The simulator makes every number.** The owner confirms a read-back ("Please confirm: Buyer A pays 30 days late. Reply yes or no") before anything runs.
 
-> **Not financial or legal advice.** Kab Tak? computes and compares options; the owner decides. The demo businesses are **synthetic**.
+> **Disclaimer:** Kab Tak? does not provide financial or legal advice. It helps business owners calculate, compare, and evaluate available options. All final decisions remain with the business owner.
 
 ## Persona
 
