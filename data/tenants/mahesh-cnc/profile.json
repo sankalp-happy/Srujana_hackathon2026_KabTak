@@ -1,0 +1,8 @@
+{
+  "tenant_id": "mahesh-cnc",
+  "business_name": "Mahesh Precision Components",
+  "buyers": ["Buyer A", "Buyer B", "CPSE", "Small customers"],
+  "today": "2026-10-25",
+  "synthetic": true,
+  "params": {}
+}

@@ -1,0 +1,35 @@
+date,label,kind,amount_inr
+2026-10-31,Weaver wages (weekly),wages,55000
+2026-10-31,Yarn (supplier),supplier,569000
+2026-11-01,Rent,rent,35000
+2026-11-05,Diwali bonus (weavers),bonus,120000
+2026-11-05,Loom EMI,emi,65000
+2026-11-07,Weaver wages (weekly),wages,65000
+2026-11-12,Power bill (looms),power,165000
+2026-11-14,Weaver wages (weekly),wages,65000
+2026-11-14,Yarn (supplier),supplier,569000
+2026-11-20,GST,gst,27000
+2026-11-21,Weaver wages (weekly),wages,65000
+2026-11-28,Weaver wages (weekly),wages,65000
+2026-12-01,Rent,rent,35000
+2026-12-01,Yarn (supplier),supplier,572000
+2026-12-05,Loom EMI,emi,65000
+2026-12-05,Weaver wages (weekly),wages,65000
+2026-12-12,Power bill (looms),power,165000
+2026-12-12,Weaver wages (weekly),wages,65000
+2026-12-15,Yarn (supplier),supplier,572000
+2026-12-19,Weaver wages (weekly),wages,65000
+2026-12-20,GST,gst,44000
+2026-12-26,Weaver wages (weekly),wages,65000
+2026-12-31,Yarn (supplier),supplier,521000
+2027-01-01,Rent,rent,35000
+2027-01-02,Weaver wages (weekly),wages,65000
+2027-01-05,Loom EMI,emi,65000
+2027-01-09,Weaver wages (weekly),wages,65000
+2027-01-12,Power bill (looms),power,165000
+2027-01-14,Yarn (supplier),supplier,521000
+2027-01-16,Weaver wages (weekly),wages,65000
+2027-01-20,GST,gst,45000
+2027-01-23,Weaver wages (weekly),wages,65000
+2027-01-30,Weaver wages (weekly),wages,65000
+2027-01-31,Yarn (supplier),supplier,418000

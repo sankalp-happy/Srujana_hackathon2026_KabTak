@@ -27,3 +27,5 @@ data/raw/
 data/owner_entries.json
 data/registry.sqlite
 data/tenants/*/owner_entries.json
+deploy/.env.evolution
+.impeccable/questions/

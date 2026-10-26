@@ -1,0 +1,17 @@
+{
+  "tenant_id": "shree-textiles",
+  "business_name": "Shree Textiles, Ichalkaranji",
+  "buyers": [
+    "Patil Fabrics",
+    "Mehta Wholesale",
+    "Jain Garments",
+    "Kothari Sarees",
+    "Counter sales"
+  ],
+  "today": "2026-10-25",
+  "synthetic": true,
+  "params": {
+    "gst_rate": 0.05,
+    "tds_rate": 0.0
+  }
+}

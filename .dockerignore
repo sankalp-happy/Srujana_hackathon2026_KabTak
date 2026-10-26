@@ -3,5 +3,7 @@
 .env
 .env.*
 **/__pycache__
-whatsapp
+whatsapp/evolution
+deploy
+data/registry.sqlite
 docs

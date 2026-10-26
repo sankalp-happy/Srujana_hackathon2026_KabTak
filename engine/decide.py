@@ -2,9 +2,8 @@
 
 All runs use the same seed (common random numbers), so risk is monotone in delay / terms / advance.
 """
-from functools import lru_cache
-
 from engine import simulate as sm
+from engine.tenants import DEFAULT
 
 
 def threshold(p_base, risk_target=0.05):
@@ -12,16 +11,21 @@ def threshold(p_base, risk_target=0.05):
     return risk_target if p_base <= risk_target else p_base + risk_target
 
 
-@lru_cache(maxsize=None)
-def _p(delay, order, n_paths, seed):
+_P = {}   # (tenant, delay, order, n_paths, seed) -> p_shortfall; answer.reload drops a tenant's keys
+
+
+def _p(tenant, delay, order, n_paths, seed):
     """p_shortfall of one scenario. delay = ((buyer, days),...), order = ((key, value),...) or None."""
-    sim = sm.simulate(extra_delay=dict(delay) or None, order=dict(order) if order else None,
-                      n_paths=n_paths, seed=seed)
-    return float(sm.p_shortfall(sim))
+    k = (tenant, delay, order, n_paths, seed)
+    if k not in _P:
+        sim = sm.simulate(extra_delay=dict(delay) or None, order=dict(order) if order else None,
+                          n_paths=n_paths, seed=seed, tenant=tenant)
+        _P[k] = float(sm.p_shortfall(sim))
+    return _P[k]
 
 
-def _run(delay=None, order=None, n_paths=1000, seed=0):
-    return _p(tuple(sorted((delay or {}).items())), tuple(sorted(order.items())) if order else None,
+def _run(delay=None, order=None, n_paths=1000, seed=0, tenant=DEFAULT):
+    return _p(tenant, tuple(sorted((delay or {}).items())), tuple(sorted(order.items())) if order else None,
               n_paths, seed)
 
 
@@ -35,19 +39,20 @@ def _largest(ok, lo, hi):
     return lo
 
 
-def kab_tak(risk_target=0.05, n_paths=1000, seed=0, buyers=("Buyer A", "Buyer B", "CPSE"), base_order=None):
-    thr = threshold(_run(None, base_order, n_paths, seed), risk_target)
+def kab_tak(risk_target=0.05, n_paths=1000, seed=0, buyers=("Buyer A", "Buyer B", "CPSE"), base_order=None,
+            tenant=DEFAULT):
+    thr = threshold(_run(None, base_order, n_paths, seed, tenant), risk_target)
     return [{"buyer": b,
-             "max_delay_days": _largest(lambda d: _run({b: d}, base_order, n_paths, seed) <= thr, 0, 120)}
+             "max_delay_days": _largest(lambda d: _run({b: d}, base_order, n_paths, seed, tenant) <= thr, 0, 120)}
             for b in buyers]
 
 
-def order_terms(order, risk_target=0.05, n_paths=1000, seed=0):
-    thr = threshold(_run(None, None, n_paths, seed), risk_target)
+def order_terms(order, risk_target=0.05, n_paths=1000, seed=0, tenant=DEFAULT):
+    thr = threshold(_run(None, None, n_paths, seed, tenant), risk_target)
     req = min(int(order["terms_days"]), 180)
 
     def p(terms=req, adv=0):
-        return _run(None, {**order, "terms_days": terms, "advance_pct": adv}, n_paths, seed)
+        return _run(None, {**order, "terms_days": terms, "advance_pct": adv}, n_paths, seed, tenant)
 
     # terms 0 can still be unsafe (the cash gap is before the invoice); the advance search runs regardless
     terms = _largest(lambda t: p(t) <= thr, 0, req) if p(0) <= thr else 0

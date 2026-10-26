@@ -57,15 +57,16 @@ def _chat(messages, schema=None, model=MODEL, temperature=0):
 STT_MODEL, STT_FALLBACK = "whisper-large-v3", "whisper-large-v3-turbo"   # full model is better on Marathi
 STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 # Biases Whisper towards the words owners use; no language set, so Marathi, Hindi and English all work.
-STT_PROMPT = "ऑर्डर, लाख, दिवस, पगार, बजाज, टाटा, बायर ए, बायर बी, Buyer A, Buyer B, CPSE, wages, GST, overdraft, advance."
+STT_HEAD, STT_TAIL = "ऑर्डर, लाख, दिवस, पगार, बजाज, टाटा", "wages, GST, overdraft, advance."
+STT_PROMPT = f"{STT_HEAD}, बायर ए, बायर बी, Buyer A, Buyer B, CPSE, {STT_TAIL}"
 
 
 OR_STT_MODEL = os.environ.get("STT_MODEL", "elevenlabs/scribe-v2")
 OR_STT_URL = "https://openrouter.ai/api/v1/audio/transcriptions"
 
 
-def transcribe(audio, mime="audio/webm"):
-    """OpenRouter Voxtral first; any failure falls back to Groq Whisper."""
+def transcribe(audio, mime="audio/webm", hint=None):
+    """OpenRouter Voxtral first; any failure falls back to Groq Whisper. hint = the tenant's buyer names, biasing Whisper."""
     try:
         fmt = {"mpeg": "mp3", "mp4": "m4a", "x-wav": "wav"}.get(mime.split(";")[0].split("/")[-1], mime.split(";")[0].split("/")[-1])
         body = json.dumps({"model": OR_STT_MODEL, "input_audio": {"data": base64.b64encode(audio).decode(), "format": fmt}}).encode()
@@ -77,15 +78,15 @@ def transcribe(audio, mime="audio/webm"):
             return text
     except Exception as e:
         print("transcribe: OpenRouter failed, falling back to Groq Whisper:", e, file=sys.stderr)
-    return _whisper(audio, mime)
+    return _whisper(audio, mime, hint=hint)
 
 
-def _whisper(audio, mime="audio/webm", model=STT_MODEL):
+def _whisper(audio, mime="audio/webm", model=STT_MODEL, hint=None):
     ext = {"webm": "webm", "ogg": "ogg", "mp4": "m4a", "mpeg": "mp3", "wav": "wav", "x-wav": "wav", "aiff": "aiff"}.get(
         mime.split(";")[0].split("/")[-1], "webm")
     b = uuid.uuid4().hex
     field = lambda k, v: f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
-    body = (field("model", model) + field("response_format", "json") + field("prompt", STT_PROMPT) +
+    body = (field("model", model) + field("response_format", "json") + field("prompt", f"{STT_HEAD}, {hint}, {STT_TAIL}" if hint else STT_PROMPT) +
             f'--{b}\r\nContent-Disposition: form-data; name="file"; filename="q.{ext}"\r\n'
             f"Content-Type: {mime.split(';')[0]}\r\n\r\n".encode() + audio + f"\r\n--{b}--\r\n".encode())
     req = urllib.request.Request(STT_URL, body, {"Authorization": f"Bearer {_key()}", "User-Agent": "kabtak-ui",
@@ -95,7 +96,7 @@ def _whisper(audio, mime="audio/webm", model=STT_MODEL):
             return json.load(r)["text"].strip()
     except urllib.error.HTTPError as e:
         if e.code == 429 and model != STT_FALLBACK:
-            return _whisper(audio, mime, STT_FALLBACK)
+            return _whisper(audio, mime, STT_FALLBACK, hint)
         raise
 
 
@@ -114,22 +115,23 @@ SCHEMA = {
     },
 }
 def _parse_prompt(buyers, today):
+    a, b = (buyers + ["your buyer", "another buyer"])[:2] if len(buyers) < 2 else buyers[:2]   # example names come from the tenant
     return f"""You turn a small-factory owner's question about cash flow into one typed scenario. Today is {today:%Y-%m-%d} ({today:%A}).
 Copy values only from what the owner said; never guess an amount, a number of days or a date.
 
 type, its required fields, and what days means:
 - status: none. "Can I pay wages on the 7th?", "how are we doing?"
 - new_order: party, amount_inr, days = payment terms offered. "Should I take Bajaj's 12 lakh order on 90-day terms?"
-- delay_payment: party, days = extra days late. "What if Buyer A pays a month late?"
+- delay_payment: party, days = extra days late. "What if {a} pays a month late?"
 - expense_shock: amount_inr, date. Any one-off money going out: a repair, a purchase, a cash withdrawal, the owner taking money out, a loan repayment. "The spindle motor needs 2 lakh next week", "Can I withdraw 12 L after 5 days?". The purpose doesn't matter; never ask for it.
 - sales_drop: pct, days = how long. supplier_terms: party, days = new terms. schedule_change: obligation, date.
-- payment_received: party, amount_inr = the cash the buyer pays, date = when (after today). A what-if that saves nothing: "Buyer A is paying 20 L on 3 Nov", "what if CPSE clears 5 lakh next week?".
-- add_invoice: party, amount_inr = value before GST, date = invoice date (may be past). The owner tells you to record a real invoice they raised: "Add invoice: Buyer A, 2 lakh plus GST, dated today", "I billed CPSE 3 lakh on 20 Oct, note it".
+- payment_received: party, amount_inr = the cash the buyer pays, date = when (after today). A what-if that saves nothing: "{a} is paying 20 L on 3 Nov", "what if {b} clears 5 lakh next week?".
+- add_invoice: party, amount_inr = value before GST, date = invoice date (may be past). The owner tells you to record a real invoice they raised: "Add invoice: {a}, 2 lakh plus GST, dated today", "I billed {b} 3 lakh on 20 Oct, note it".
 - add_obligation: amount_inr, date = due date, obligation = the closest kind ({", ".join(KINDS)}; bills from suppliers, repairs and other vendors are supplier), party = a short label for the bill in the owner's words (e.g. "Machine repair", "Tata Steel"). The owner tells you to record a real bill they must pay: "I have a 2 lakh machine repair bill due 10 Nov, add it".
 - add_* SAVE data; every other type is a what-if that saves nothing. Use add_* only when the owner states a real invoice or bill and asks to add, record, note, save or enter it. "Can I spend / what if / should I" is a what-if (expense_shock, new_order). A bare amount and date with no ask ("Machine repair 2 lakh on 10 Nov") is unclear: set needs_clarification and ask "Should I save this as a real bill, or is it a what-if?" (or "real invoice").
 
 Rules:
-- Known buyers: {", ".join(buyers)}. For delay_payment, payment_received and add_invoice the party must be one of these, written exactly so; if the owner names someone else, ask which of these buyers they mean, listing them all. For new_order use the name as said (e.g. "Bajaj"), or "New buyer" if unnamed.
+- Known buyers: {", ".join(buyers) or "none yet"}. For add_invoice use the buyer's name as said (a new buyer is fine). For delay_payment and payment_received the party must be one of these, written exactly so; if the owner names someone else, ask which of these buyers they mean, listing them all. For new_order use the name as said (e.g. "Bajaj"), or "New buyer" if unnamed.
 - amount_inr is whole rupees: 1 lakh = 100000, 1 crore = 10000000, 1 hazaar = 1000. "12 L" = 1200000. Read Devanagari digits (०-९) and Marathi/Hindi number words.
 - "a month" = 30 days, "two months" = 60, "a week" = 7. Dates are YYYY-MM-DD, resolved from today; "next week" = {today + timedelta(days=7):%Y-%m-%d}.
 - If a required field is missing or the question is unclear, set needs_clarification true and put exactly ONE short follow-up question in question, in the owner's language. Otherwise question is null.
@@ -138,7 +140,7 @@ Rules:
 
 def parse(text, buyers=None, today=None):
     """buyers/today come from the tenant's profile (engine.ledger.profile); None = the demo tenant's."""
-    s = _chat([{"role": "system", "content": _parse_prompt(buyers or BUYERS, today or TODAY)}, {"role": "user", "content": text}], SCHEMA)
+    s = _chat([{"role": "system", "content": _parse_prompt(BUYERS if buyers is None else buyers, today or TODAY)}, {"role": "user", "content": text}], SCHEMA)
     s["transcript"] = text
     return s
 
@@ -290,5 +292,8 @@ if __name__ == "__main__":
     assert _safe("Pay 12 lakh on the 7th.", f) is None and _safe("Pay 12 lakh on the 7th.", f, "withdraw 12L by the 7th") 
     assert _safe("Risk 1.5 months. Week of 28 Dec.", f) is None
     assert "28 Dec" in TEMPLATE["mr"].format_map(f)
+    q = _parse_prompt(["Om Traders", "Bajrang Mills"], TODAY)   # examples use the tenant's buyers, not Mahesh's
+    assert "Buyer A" not in _parse_prompt([], TODAY) and "none yet" in _parse_prompt([], TODAY)   # a new business never sees Mahesh's buyers
+    assert "Om Traders pays a month late" in q and "Bajrang Mills clears" in q and "Buyer A" not in q and "CPSE" not in q
     assert _safe("₹26 L is over 45 days old.", {**f, "money_owed_for_over_45_days": "₹26 L"})
     print("ok")

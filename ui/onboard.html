@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Sign up · Kab Tak?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Yatra+One&family=Mukta:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* Same enamel-board look as landing-page/index.html */
+:root {
+  --yellow: #f2b705; --red: #c8201e; --red-deep: #8f1210; --teal: #0e5e6f; --ink: #1a1a1a; --cream: #fff6dd;
+  --muted: #5a4a1c; --ok: #237a52;
+  --display: "Yatra One", "Mukta", serif;
+  --body: "Mukta", "Noto Sans Devanagari", system-ui, sans-serif;
+  --gutter: clamp(16px, 4vw, 56px);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: var(--ink); color: var(--ink); font: 400 18px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+::selection { background: var(--red); color: var(--cream); }
+:focus-visible { outline: 3px solid var(--red); outline-offset: 3px; border-radius: 2px; }
+a { color: inherit; text-underline-offset: .2em; text-decoration-thickness: 2px; }
+h1, h2 { font-family: var(--display); font-weight: 400; line-height: 1.05; margin: 0; text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+[hidden] { display: none !important; }
+h1[tabindex="-1"]:focus { outline: none; }   /* focused by script on step change, not by the keyboard */
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px var(--gutter); color: var(--cream); }
+.logo { display: flex; align-items: baseline; gap: 10px; text-decoration: none; font: 400 28px var(--display); color: var(--yellow); }
+.logo span { color: var(--cream); font-size: 24px; }
+.top a:not(.logo) { font-weight: 500; }
+
+.board {
+  position: relative; max-width: 980px; margin: 0 auto clamp(16px, 4vw, 40px); padding: clamp(28px, 5vw, 56px) var(--gutter);
+  background: var(--cream); border: 6px solid var(--ink); box-shadow: inset 0 0 0 4px var(--cream), inset 0 0 0 9px var(--ink);
+}
+.kicker { font: 700 15px var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--red); }
+.board h1 { margin-top: 6px; font-size: clamp(36px, 5vw, 60px); text-shadow: 3px 4px 0 var(--yellow); }
+.lede { margin-top: 12px; max-width: 46ch; font-size: 20px; }
+
+form { display: grid; gap: 18px; max-width: 520px; margin-top: 28px; }
+label { display: block; font-weight: 700; margin-bottom: 6px; }
+label small { font-weight: 400; color: var(--muted); }
+input {
+  width: 100%; min-height: 54px; padding: 10px 14px; font: 500 20px var(--body); color: var(--ink);
+  background: #fff; border: 3px solid var(--ink); border-radius: 6px;
+}
+input:focus { outline: none; box-shadow: 0 0 0 3px var(--yellow); }
+input[aria-invalid="true"] { border-color: var(--red); }
+.phone { display: flex; }
+.phone span { display: grid; place-items: center; padding: 0 14px; font: 700 20px var(--body); background: var(--yellow); border: 3px solid var(--ink); border-right: 0; border-radius: 6px 0 0 6px; }
+.phone input { border-radius: 0 6px 6px 0; }
+.err { margin-top: 6px; color: var(--red); font-weight: 700; font-size: 16px; }
+.fine { font-size: 15px; color: var(--muted); }
+
+.plate {
+  display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 58px; padding: 10px 26px 12px;
+  background: var(--red); color: var(--cream); border: 3px solid var(--ink); border-radius: 6px;
+  font: 400 22px/1 var(--display); text-decoration: none; cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--cream), 0 6px 14px rgba(26,26,26,.28);
+  transition: transform .2s var(--ease), background-color .2s;
+}
+.plate:hover { transform: translateY(-2px); background: var(--red-deep); }
+.plate:active { transform: translateY(1px); }
+.plate:disabled { opacity: .6; cursor: progress; transform: none; }
+.plate svg { width: 22px; height: 22px; flex: none; }
+.plate.wa { background: var(--ok); }
+.plate.wa:hover { background: #18573a; }
+.plate.ghost { background: var(--cream); color: var(--ink); box-shadow: inset 0 0 0 2px #fff, 0 6px 14px rgba(26,26,26,.18); }
+.plate.ghost:hover { background: var(--yellow); }
+.file:focus-within .plate { outline: 3px solid var(--red); outline-offset: 3px; }
+.file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.loaded { display: grid; gap: 6px; padding: 14px 16px; border: 3px solid var(--ink); border-radius: 6px; background: var(--cream); font-size: 17px; }
+.loaded b { font-weight: 800; }
+.loaded .risk { font: 400 22px/1.15 var(--display); }
+.loaded.bad { border-color: var(--red); color: var(--red); font-weight: 700; }
+.loaded ul { margin: 0; padding-left: 20px; font-size: 15px; color: var(--muted); }
+
+.options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 3vw, 28px); margin-top: 28px; }
+.option { display: flex; flex-direction: column; gap: 12px; padding: 24px; border: 4px solid var(--ink); border-radius: 8px; background: #fff; }
+.option.go { background: var(--teal); color: var(--cream); }
+.option h2 { font-size: clamp(26px, 3vw, 34px); }
+.option .tag { align-self: flex-start; padding: 2px 10px 4px; border: 2px solid currentColor; border-radius: 4px; font-weight: 800; font-size: 14px; }
+.option p { flex: 1; }
+.msg { position: relative; align-self: flex-start; max-width: 100%; padding: 10px 16px 12px; background: #dcf8c6; color: var(--ink);
+  border-radius: 12px 12px 4px 12px; font-weight: 700; font-size: 19px; line-height: 1.35; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
+.option.go .fine { color: #cfe9ec; }
+/* Disclaimer: a hazard-yellow plate with a black rule, not a note */
+.nodata { display: grid; gap: 10px; padding: 14px 16px 16px; background: var(--yellow); color: var(--ink); border: 3px solid var(--ink);
+  border-left-width: 10px; border-radius: 6px; font-size: 16px; line-height: 1.45; box-shadow: 0 4px 0 rgba(0,0,0,.35); }
+.nodata .head { display: flex; align-items: center; gap: 10px; font: 800 15px var(--body); letter-spacing: .08em; text-transform: uppercase; }
+.nodata .head svg { width: 26px; height: 26px; flex: none; }
+.nodata a { color: var(--ink); font-weight: 800; }
+.nodata .tick { padding-top: 10px; border-top: 2px solid rgba(26,26,26,.35); }
+.tick { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; cursor: pointer; }
+.tick input { flex: none; width: 22px; height: 22px; min-height: 0; margin: 2px 0 0; accent-color: var(--ink); }
+.plate.wa[aria-disabled="true"] { opacity: .5; cursor: not-allowed; transform: none; background: var(--ok); }
+
+@media (max-width: 720px) {
+  .options { grid-template-columns: 1fr; }
+  .option.go { order: -1; }   /* WhatsApp first on a phone: it's the one-tap path */
+  .top a:not(.logo) { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="/"><span lang="hi">कब तक?</span> Kab Tak?</a>
+  <a href="/">Back to home</a>
+</header>
+
+<main>
+  <!-- Step 1: who you are -->
+  <section class="board" id="step1" aria-labelledby="s1-title">
+    <p class="kicker">Step 1 of 2</p>
+    <h1 id="s1-title">Add your shop <span lang="hi">· दुकान जोड़ें</span></h1>
+    <p class="lede">Takes 30 seconds. After that, everything happens on WhatsApp.</p>
+    <form id="signup" novalidate>
+      <div>
+        <label for="owner">Your name</label>
+        <input id="owner" name="owner_name" autocomplete="name" required maxlength="80">
+      </div>
+      <div>
+        <label for="biz">Business name</label>
+        <input id="biz" name="business_name" autocomplete="organization" required maxlength="80" placeholder="e.g. Shree Textiles">
+      </div>
+      <div>
+        <label for="phone">WhatsApp number</label>
+        <div class="phone"><span aria-hidden="true">+91</span><input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" required maxlength="14" placeholder="98765 43210" aria-describedby="phone-help"></div>
+        <p class="fine" id="phone-help">We only use it to link your WhatsApp. Nothing is sent until you message us.</p>
+      </div>
+      <div>
+        <label for="bank">Money in the bank today <small>(optional, helps the first forecast)</small></label>
+        <input id="bank" name="bank_inr" inputmode="numeric" placeholder="₹ e.g. 2,50,000">
+      </div>
+      <p class="err" id="err" role="alert" hidden></p>
+      <div><button class="plate" type="submit" id="go">Continue
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+      <p class="fine">Kab Tak? computes and compares options. It is not financial or legal advice.</p>
+    </form>
+  </section>
+
+  <!-- Step 2: two ways in -->
+  <section class="board" id="step2" aria-labelledby="s2-title" hidden>
+    <p class="kicker">Step 2 of 2</p>
+    <h1 id="s2-title" tabindex="-1">You're in, <span id="who"></span>.</h1>
+    <p class="lede">Pick how to give Kab Tak? your numbers.</p>
+    <div class="options">
+      <article class="option">
+        <span class="tag">Option 1</span>
+        <h2>Upload your Kab Tak? Excel</h2>
+        <p>The workbook with your <b>invoices</b>, <b>obligations</b> and <b>position</b> sheets. Your full history gives a sharp forecast from day one. Then continue on WhatsApp.</p>
+        <label class="file"><input type="file" id="xlsx" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          <span class="plate ghost" id="xlsx-btn">Choose Excel file</span></label>
+        <div class="loaded" id="loaded" role="status" aria-live="polite" hidden></div>
+      </article>
+      <article class="option go">
+        <span class="tag">Option 2</span>
+        <h2>Start on WhatsApp</h2>
+        <p>Tap below and send the message that opens. Then tell the bot your invoices and bills, by text or voice note.</p>
+        <p class="msg" id="msg" aria-label="The message that opens"></p>
+        <div class="nodata" id="nodata" role="note" aria-labelledby="nodata-head">
+          <p class="head" id="nodata-head"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 22.5 21h-21z" fill="#1a1a1a"/><path d="M12 9v5.5" stroke="#f2b705" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.4" fill="#f2b705"/></svg>Disclaimer: no data uploaded</p>
+          <p>Kab Tak? gets better with your data. <b>With little or no history, the simulation runs on standard assumptions (such as buyers paying in about 45 days), so its forecasts can deviate more from what really happens.</b> Every invoice and bill you add on WhatsApp makes them more accurate.</p>
+          <label class="tick"><input type="checkbox" id="terms"> <span>I understand, and I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>.</span></label>
+        </div>
+        <a class="plate wa" id="wa" target="_blank" rel="noopener" aria-disabled="true" aria-describedby="nodata">Open WhatsApp
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <p class="fine" id="wa-note"></p>
+      </article>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const form = $("#signup"), err = $("#err");
+
+function fail(msg, field) {
+  err.textContent = msg; err.hidden = false;
+  form.querySelectorAll("input").forEach((i) => i.removeAttribute("aria-invalid"));
+  if (field) { field.setAttribute("aria-invalid", "true"); field.focus(); }
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  err.hidden = true;
+  const owner = $("#owner").value.trim(), biz = $("#biz").value.trim();
+  const phone = $("#phone").value.replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "");
+  const bankRaw = $("#bank").value.replace(/[^\d]/g, "");
+  if (!owner) return fail("Please enter your name.", $("#owner"));
+  if (!biz) return fail("Please enter your business name.", $("#biz"));
+  if (!/^[6-9]\d{9}$/.test(phone)) return fail("Enter your 10-digit WhatsApp number.", $("#phone"));
+  const btn = $("#go"); btn.disabled = true;
+  try {
+    const res = await fetch("/api/signup", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ owner_name: owner, business_name: biz, phone, bank_inr: bankRaw ? Number(bankRaw) : null }) });
+    const body = await res.json();
+    if (!res.ok) return fail(body.error || "Something went wrong. Please try again.");
+    showStep2(owner, phone, body);
+  } catch {
+    fail("Couldn't reach Kab Tak?. Check your connection and try again.");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+const FIRST = "What is the status of my current cash flow?";   // the first message; the sign-up number links on it
+let signed = null;   // {tenant_id, join_code} from step 1: the upload proves it came from this page
+let uploaded = false;   // with no upload, WhatsApp waits for the less-data warning and Terms to be ticked
+
+function syncWa() {
+  $("#wa").setAttribute("aria-disabled", String(!(uploaded || $("#terms").checked)));
+}
+$("#wa").addEventListener("click", (e) => {
+  if ($("#wa").getAttribute("aria-disabled") === "true") { e.preventDefault(); $("#terms").focus(); }
+});
+$("#terms").addEventListener("change", (e) => {
+  syncWa();
+  if (e.target.checked) fetch("/api/onboard/terms", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(signed) }).catch(() => {});   // the record is best-effort; the tick itself gates the button
+});
+
+$("#xlsx").addEventListener("change", async (e) => {
+  const file = e.target.files[0], box = $("#loaded"), btn = $("#xlsx-btn");
+  if (!file) return;
+  box.hidden = false; box.className = "loaded"; box.textContent = `Reading ${file.name}…`;
+  btn.textContent = "Reading…";
+  try {
+    if (file.size > 5e6) throw new Error("Send a file of 5 MB or less.");
+    const b64 = await new Promise((ok, no) => {
+      const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = () => no(r.error); r.readAsDataURL(file);
+    });
+    const res = await fetch("/api/onboard/excel", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...signed, filename: file.name, content_b64: b64 }) });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "Couldn't read that file.");
+    showLoaded(body);
+    uploaded = true; $("#nodata").hidden = true; syncWa();
+  } catch (err) {
+    box.className = "loaded bad"; box.textContent = err.message;
+  } finally {
+    btn.textContent = "Choose another file"; e.target.value = "";
+  }
+});
+
+const L = (n) => new Intl.NumberFormat("en-IN").format(n);
+function showLoaded(r) {
+  const w = r.worst_week, pct = Math.round(w.p_shortfall * 100);
+  const when = new Date(w.week_start).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const box = $("#loaded");
+  box.innerHTML = `<span>✓ <b>${L(r.invoices)}</b> invoices (${L(r.open_invoices)} still open), <b>${r.buyers.length}</b> buyers, <b>${L(r.bills)}</b> bills${r.position_loaded ? ", bank position" : ""}</span>
+    <span class="risk">${pct <= 5 ? `Looks safe: ${pct}% risk at worst` : `Week of ${when}: ${pct}% chance of running short`}</span>
+    <span>Now tap <b>Open WhatsApp</b> to ask about it.</span>`;
+  if (r.skipped) {
+    const ul = document.createElement("ul");
+    r.errors.forEach((e) => { const li = document.createElement("li"); li.textContent = `${e.sheet} row ${e.row}: ${e.error}`; ul.append(li); });
+    box.insertAdjacentHTML("beforeend", `<span>Skipped ${L(r.skipped)} row${r.skipped > 1 ? "s" : ""}:</span>`);
+    box.append(ul);
+  }
+}
+
+function showStep2(owner, phone, { tenant_id, join_code, bot_number }) {
+  signed = { tenant_id, join_code };
+  $("#who").textContent = owner.split(" ")[0];
+  $("#msg").textContent = FIRST;
+  const wa = $("#wa"), from = `+91 ${phone.slice(0, 5)} ${phone.slice(5)}`;
+  if (bot_number) {
+    wa.href = `https://wa.me/${bot_number.replace(/\D/g, "")}?text=${encodeURIComponent(FIRST)}`;
+    $("#wa-note").textContent = `Send it from ${from}, the number you entered: that links your shop. Not linking? Send JOIN ${join_code}.`;
+  } else {   // no bot number configured on this server: show the code to type instead
+    wa.hidden = true;
+    $("#wa-note").textContent = `Send this message to the Kab Tak? WhatsApp number from ${from}, the number you entered.`;
+  }
+  $("#step1").hidden = true; $("#step2").hidden = false;
+  $("#s2-title").focus();
+  scrollTo(0, 0);
+}
+</script>
+</body>
+</html>

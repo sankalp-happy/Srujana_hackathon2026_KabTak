@@ -1,0 +1,65 @@
+# Kab Tak? on one VM: website + WhatsApp bot + Evolution API (Baileys) + Postgres + Redis, behind Caddy (HTTPS).
+# Only Caddy is public (80/443). Evolution is reachable from the VM itself on 127.0.0.1:8080 for admin.
+#
+# Files next to this one (not committed): .env.evolution (Evolution's settings, see whatsapp/evolution/.env.example)
+# and ../.env (GROQ_KEY, OPENROUTER_KEY).  SITE is the public host name, e.g. 172-198-161-228.sslip.io.
+#
+# Run from this folder:  docker compose --env-file .env.evolution up -d --build
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes: [redis_data:/data]
+
+  evolution:
+    # the exact build that paired the WhatsApp number (v2.3.7); its database is restored, so don't drift
+    image: evoapicloud/evolution-api@sha256:966625532d9076a2381e973a271307d107e6f070450de3abeeea8bd18be07252
+    restart: unless-stopped
+    env_file: .env.evolution
+    environment: {TZ: Asia/Kolkata}
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: [evolution_instances:/evolution/instances]
+    depends_on: [postgres, redis]
+
+  web:
+    build: ..
+    restart: unless-stopped
+    env_file: ../.env
+    environment: {HOST: 0.0.0.0, PORT: "8000", BOT_NUMBER: "916205559096"}
+    volumes: [../data:/app/data]   # businesses and the phone registry live on the VM disk, shared with the bot
+
+  bot:
+    build: ..
+    restart: unless-stopped
+    command: ["python", "-m", "uvicorn", "whatsapp.evolution_bot:app", "--host", "0.0.0.0", "--port", "8001"]
+    env_file: [../.env, .env.evolution]
+    environment:
+      EVOLUTION_URL: http://evolution:8080
+      ONBOARD_URL: https://${SITE}/onboard
+    volumes: [../data:/app/data]
+    depends_on: [evolution]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment: {SITE: "${SITE}"}
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro, caddy_data:/data, caddy_config:/config]
+    depends_on: [web]
+
+volumes:
+  postgres_data:
+  redis_data:
+  evolution_instances:
+  caddy_data:
+  caddy_config:
