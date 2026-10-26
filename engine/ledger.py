@@ -240,7 +240,12 @@ def _add(table, row, tenant):
 
 def add_invoice(buyer, taxable_inr, invoice_date, tenant=DEFAULT):
     """Owner's real invoice: GST, gross and TDS use the tenant's rates and the base ledger's rounding."""
-    p = profile(tenant)["params"]
+    prof = profile(tenant)
+    p = prof["params"]
+    if buyer not in prof["buyers"]:   # a new buyer joins the profile, so the parser and checks know it from now on
+        f = tenant_dir(tenant) / "profile.json"
+        f.write_text(json.dumps({**_RAW[tenant], "buyers": prof["buyers"] + [buyer]}, indent=2, ensure_ascii=False))
+        _RAW.pop(tenant, None)
     n = sum(e["table"] == "invoices" for e in owner_entries(tenant)) + 1
     gst = int(round(taxable_inr * p["gst_rate"]))
     return _add("invoices", {"invoice_no": f"OWN-{n:04d}", "buyer": buyer, "invoice_date": invoice_date.isoformat(),

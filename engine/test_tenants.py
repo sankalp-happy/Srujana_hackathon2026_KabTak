@@ -124,6 +124,15 @@ def test_tenants():
     (tenants.tenant_dir("fresh-start") / "invoices.csv").write_text("")
     r = A.answer(ORDER, "fresh-start")
     assert r["today"]["receivable_inr"] == 0 and "default curve" in r["assumptions"][-1]["value"] and r["order"]
+
+    # signed up on the website with no data at all: no buyers either. Status and an order still answer, and the
+    # first invoice for a new buyer adds that buyer to the profile
+    make("signed-up", [], [], [], [], {"bank_inr": 50_000, "od_limit_inr": 0, "od_drawn_inr": 0, "stock_inr": 0, "creditors_inr": 0})
+    (tenants.tenant_dir("signed-up") / "invoices.csv").write_text("")
+    assert A.answer(STATUS, "signed-up")["today"]["bank_inr"] == 50_000 and A.answer(ORDER, "signed-up")["order"]
+    A.answer({"type": "add_invoice", "party": "Sharma Traders", "amount_inr": 50_000, "date": TODAY.isoformat()}, "signed-up")
+    assert ledger.profile("signed-up")["buyers"] == ["Sharma Traders"]
+    assert A.answer({"type": "delay_payment", "party": "Sharma Traders", "days": 30}, "signed-up")["today"]["receivable_inr"] > 0
     A.reload()
 
 

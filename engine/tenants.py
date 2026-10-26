@@ -38,8 +38,12 @@ def _db():
     c = sqlite3.connect(DATA_ROOT / "registry.sqlite")
     c.executescript("""
         CREATE TABLE IF NOT EXISTS phones (phone TEXT PRIMARY KEY, tenant_id TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS join_codes (code TEXT PRIMARY KEY, tenant_id TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS join_codes (code TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, phone TEXT);
         CREATE TABLE IF NOT EXISTS seen (msg_id TEXT PRIMARY KEY);""")
+    try:
+        c.execute("ALTER TABLE join_codes ADD COLUMN phone TEXT")   # registries made before signup bound codes to a phone
+    except sqlite3.OperationalError:
+        pass
     return c
 
 
@@ -47,25 +51,39 @@ def _phone(p: str) -> str:
     return re.sub(r"\D", "", p)   # E.164 digits only, as the WhatsApp providers send them
 
 
-def new_join_code(tid: str) -> str:
-    """6-digit code the owner sends to the bot as 'JOIN 123456' to link their number."""
+def new_join_code(tid: str, phone: str | None = None) -> str:
+    """6-digit code the owner sends to the bot as 'JOIN 123456' to link their number.
+    With `phone`, only a message from that number can use it (signup asks for the number)."""
     with _db() as c:
         while True:
             code = f"{secrets.randbelow(10**6):06d}"
             if not c.execute("SELECT 1 FROM join_codes WHERE code=?", (code,)).fetchone():
-                c.execute("INSERT INTO join_codes VALUES (?, ?)", (code, tid))
+                c.execute("INSERT INTO join_codes VALUES (?, ?, ?)", (code, tid, _phone(phone) if phone else None))
                 return code
 
 
 def claim(code: str, phone: str) -> str | None:
     """Link phone to the code's tenant and burn the code. Returns the tenant id, or None for a bad code."""
     with _db() as c:
-        row = c.execute("SELECT tenant_id FROM join_codes WHERE code=?", (code.strip(),)).fetchone()
-        if not row:
+        row = c.execute("SELECT tenant_id, phone FROM join_codes WHERE code=?", (code.strip(),)).fetchone()
+        if not row or (row[1] and row[1] != _phone(phone)):   # bad code, or sent from another number
             return None
         c.execute("DELETE FROM join_codes WHERE code=?", (code.strip(),))
         c.execute("INSERT OR REPLACE INTO phones VALUES (?, ?)", (_phone(phone), row[0]))
         return row[0]
+
+
+def claim_phone(phone: str) -> str | None:
+    """First message from the number given at sign-up links it, no code typed: claims that number's latest unused code."""
+    with _db() as c:
+        row = c.execute("SELECT code FROM join_codes WHERE phone=? ORDER BY rowid DESC LIMIT 1", (_phone(phone),)).fetchone()
+    return claim(row[0], phone) if row else None
+
+
+def unclaimed(code: str, tid: str) -> bool:
+    """The sign-up page holds this business's code and it isn't used yet: proof enough to upload its Excel file."""
+    with _db() as c:
+        return bool(c.execute("SELECT 1 FROM join_codes WHERE code=? AND tenant_id=?", (str(code).strip(), tid)).fetchone())
 
 
 def link(phone: str, tid: str) -> None:
@@ -98,6 +116,13 @@ if __name__ == "__main__":
     assert claim(code, "+91 99999 99999") == "shree-textiles-k3f9"
     assert tenant_for("919999999999") == "shree-textiles-k3f9"
     assert claim(code, "918888888888") is None   # codes are single-use
+    bound = new_join_code("sai-snacks", "+91 77777 77777")
+    assert unclaimed(bound, "sai-snacks") and not unclaimed(bound, "shree-textiles") and not unclaimed("000000", "sai-snacks")
+    assert claim(bound, "916666666666") is None and claim(bound, "917777777777") == "sai-snacks"   # only from the signup number
+    assert not unclaimed(bound, "sai-snacks")   # once linked, the page can't upload any more
+    new_join_code("shree-textiles", "915555555555")
+    assert claim_phone("914444444444") is None and claim_phone("+91 55555 55555") == "shree-textiles"
+    assert tenant_for("915555555555") == "shree-textiles" and claim_phone("915555555555") is None   # code used up
     assert first_time("A1") and not first_time("A1")
     assert tenant_dir("mahesh-cnc").name == "mahesh-cnc" and new_id("Shree Textiles!").startswith("shree-textiles-")
     for bad in ("../x", "", "A"):

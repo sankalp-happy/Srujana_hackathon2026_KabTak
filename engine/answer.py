@@ -36,7 +36,9 @@ def _check(s, tenant):
     if "days" in SUPPORTED[t] and (isinstance(d, bool) or not isinstance(d, int) or not 0 <= d <= 365):
         raise ValueError("days must be a whole number from 0 to 365")
     buyers = ledger.profile(tenant)["buyers"]
-    if t in ("delay_payment", "add_invoice", "payment_received") and s["party"] not in buyers:
+    if t == "add_invoice" and not (isinstance(s["party"], str) and s["party"].strip()):
+        raise ValueError("party must be a name")
+    if t in ("delay_payment", "payment_received") and s["party"] not in buyers:   # add_invoice may name a new buyer
         raise ValueError(f"Unknown party {s['party']!r}; expected one of {', '.join(buyers)}")
     if t == "add_obligation" and s["obligation"] not in ledger.KINDS:
         raise ValueError(f"Unknown bill kind {s['obligation']!r}; expected one of {', '.join(ledger.KINDS)}")

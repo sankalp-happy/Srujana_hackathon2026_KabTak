@@ -1,15 +1,18 @@
-"""Kab Tak? UI server: serves ui/index.html and answers scenarios.
+"""Kab Tak? server: landing page at /, sign-up at /onboard, dashboard at /dashboard; answers scenarios.
 
 Run from the repo root:  python3 ui/server.py   (then open http://localhost:8000)
 """
-import base64, binascii, json, os, sys
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+import base64, binascii, json, os, re, sys
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 RESULT = os.environ.get("KABTAK_RESULT", "fixtures/engine_result.json")
 
 UI = Path(__file__).resolve().parent
+LANDING = UI.parent / "landing-page" / "index.html"
+BOT_NUMBER = os.environ.get("BOT_NUMBER", "916205559096")   # the Kab Tak? WhatsApp bot; set BOT_NUMBER to use another
+TERMS_VERSION = "2026-10-25"   # bump when ui/terms.html changes
 STATUS = {"type": "status", "party": None, "amount_inr": None, "days": None, "pct": None, "date": None,
           "obligation": None, "transcript": None, "needs_clarification": False, "question": None}
 
@@ -22,6 +25,63 @@ def tenant_name(tid):
         return p.get("business_name"), p.get("synthetic")
     except (OSError, ValueError, ImportError):
         return None, None
+
+
+def signup(body):
+    """Step 1 of sign-up: name, business, WhatsApp number (+ optional bank balance) -> an empty business and a
+    join code that only that number can use. -> {tenant_id, join_code, bot_number}. Bad input raises ValueError."""
+    import ingest
+    from engine import tenants
+    owner = re.sub(r"\s+", " ", str(body.get("owner_name") or "")).strip()
+    if not 0 < len(owner) <= 80:
+        raise ValueError("Please enter your name.")
+    digits = re.sub(r"\D", "", str(body.get("phone") or ""))
+    phone = "91" + digits if len(digits) == 10 else digits   # 10 digits = an Indian mobile without +91
+    if not re.fullmatch(r"91[6-9]\d{9}", phone):
+        raise ValueError("Enter your 10-digit WhatsApp number.")
+    bank = body.get("bank_inr")
+    tid = ingest.write_tenant(body.get("business_name"), {"bank_inr": 0 if bank in (None, "") else bank},
+                              owner_name=owner, phone=phone)
+    return {"tenant_id": tid, "join_code": tenants.new_join_code(tid, phone), "bot_number": BOT_NUMBER}
+
+
+def _signed(body):
+    """The sign-up page's own business: its id plus its still-unused join code. -> tenant id, else PermissionError."""
+    from engine import tenants
+    tid = str(body.get("tenant_id") or "")
+    if not (tenants.exists(tid) and tenants.unclaimed(body.get("join_code", ""), tid)):
+        raise PermissionError("This sign-up page has expired. Send your invoices on WhatsApp instead.")
+    return tid
+
+
+def terms(body):
+    """Record that the owner ticked the Terms of Service (and the less-data warning) on the sign-up page."""
+    from datetime import datetime, timezone
+    from engine import tenants
+    tid = _signed(body)
+    f = tenants.tenant_dir(tid) / "profile.json"
+    prof = json.loads(f.read_text())
+    prof.update(terms_version=TERMS_VERSION, terms_accepted_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    f.write_text(json.dumps(prof, indent=2, ensure_ascii=False))
+    return {"ok": True}
+
+
+def excel(body):
+    """Step 2, option 1: the owner's Kab Tak? workbook becomes the business's ledger. Allowed while the sign-up's join
+    code is unused (only that page has it). -> what was loaded, and the first forecast."""
+    import ingest
+    from engine.answer import answer, reload
+    tid = _signed(body)
+    raw = base64.b64decode(body["content_b64"], validate=True)
+    if len(raw) > 5_000_000:
+        raise ValueError("Send a file of 5 MB or less.")
+    inv, obl, pos, errors = ingest.read_workbook(raw)
+    buyers = ingest.fill_tenant(tid, inv, obl, pos)
+    reload(tid)
+    r = answer(STATUS, tenant=tid)
+    return {"invoices": len(inv), "open_invoices": sum(not x["paid_date"] for x in inv), "bills": len(obl),
+            "buyers": buyers, "position_loaded": pos is not None, "skipped": len(errors),
+            "errors": errors[:ingest.MAX_ERRORS], "worst_week": r["worst_week"]}
 
 
 def fixture():
@@ -59,10 +119,20 @@ class Handler(SimpleHTTPRequestHandler):
             return False, None
         return True, tid
 
+    def send_page(self, f):
+        data = f.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self):
         url = urlparse(self.path)
-        if url.path == "/onboard":
-            self.path = "/onboard.html"
+        if url.path == "/" and LANDING.exists():   # no landing page checked out: / stays the dashboard
+            return self.send_page(LANDING)
+        if url.path in ("/onboard", "/dashboard", "/terms"):
+            self.path = {"/onboard": "/onboard.html", "/dashboard": "/index.html", "/terms": "/terms.html"}[url.path]
         if url.path == "/api/result":  # first screen: live status check, fixture if KABTAK_RESULT is set or no engine
             ok, tid = self.tenant(parse_qs(url.query).get("tenant", [None])[0])
             if not ok:
@@ -81,37 +151,20 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def onboard(self):
-        """POST /api/onboard/preview and /commit: JSON in, JSON out."""
+        """POST /api/signup, /api/onboard/excel and /api/onboard/terms: JSON in, JSON out."""
         n = int(self.headers.get("Content-Length", 0))
         if not 0 < n <= 7_000_000:  # 5 MB file as base64
             return self.send_json(413, {"error": "Send a file of 5 MB or less."})
         try:
             body = json.loads(self.rfile.read(n))
-            import ingest
-            if not body.get("consent"):
-                return self.send_json(400, {"error": "Please tick the consent box first."})
-            up = body if self.path.endswith("preview") else body.get("upload")
-            if up:
-                raw = base64.b64decode(up["content_b64"], validate=True)
-                if len(raw) > 5_000_000:
-                    return self.send_json(413, {"error": "Send a file of 5 MB or less."})
-                headers, rows = ingest.read_table(up["filename"], raw)
-                if self.path.endswith("preview"):
-                    mapping = body.get("mapping") or ingest.map_columns(headers, rows)  # given = the owner edited it: no LLM call
-                    return self.send_json(200, {"headers": headers, "mapping": mapping, "total_rows": len(rows),
-                                                **ingest.parse_invoices(headers, rows, mapping)})
-                good = [r for r in ingest.parse_invoices(headers, rows, up["mapping"])["rows"] if not r["errors"]]
-            else:
-                good = []
-            from engine import tenants
-            tid = ingest.write_tenant(body.get("name"), body.get("position") or {}, body.get("recurring") or [], good)
-            return self.send_json(200, {"tenant_id": tid, "join_code": tenants.new_join_code(tid),
-                                        "bot_number": os.environ.get("BOT_NUMBER", ""), "invoices_loaded": len(good)})
+            return self.send_json(200, {"/api/signup": signup, "/api/onboard/excel": excel, "/api/onboard/terms": terms}[self.path](body))
+        except PermissionError as e:
+            return self.send_json(403, {"error": str(e)})
         except (ValueError, KeyError, TypeError, AttributeError, binascii.Error) as e:  # bad input, not a server bug
             return self.send_json(422, {"error": f"Couldn't use that: {e}"})
 
     def do_POST(self):
-        if self.path in ("/api/onboard/preview", "/api/onboard/commit"):
+        if self.path in ("/api/signup", "/api/onboard/excel", "/api/onboard/terms"):
             return self.onboard()
         if self.path not in ("/api/answer", "/api/parse", "/api/explain", "/api/transcribe"):
             return self.send_json(404, {"error": "not found"})
@@ -158,4 +211,4 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"Kab Tak? UI on http://localhost:{port}  (result file: {RESULT})")
-    HTTPServer((os.environ.get("HOST", "127.0.0.1"), port), Handler).serve_forever()
+    ThreadingHTTPServer((os.environ.get("HOST", "127.0.0.1"), port), Handler).serve_forever()

@@ -53,16 +53,16 @@ Every public entry point takes `tenant=` and defaults to `engine.tenants.DEFAULT
 
 ## 5. WhatsApp: `whatsapp/evolution_bot.py` (workstream B)
 1. Drop repeated provider message ids with `tenants.first_time(data["key"]["id"])`. Acknowledge the webhook at once and do the work in a background task.
-2. A sender whose text matches `JOIN <6 digits>` is linked with `tenants.claim()`. Reply with a welcome that names the business.
+2. The first message from the number given at sign-up links it (`tenants.claim_phone`), and the bot then answers that message, starting with a welcome that names the business. `JOIN <6 digits>` still works as a fallback (`tenants.claim()`).
 3. An unknown sender gets the onboarding link (env `ONBOARD_URL`, default `http://localhost:8000/onboard`). They are never answered from any tenant's data.
 4. For a known sender, `tid = tenants.tenant_for(sender)`, and every engine and parser call passes that tenant.
 
-## 6. Onboarding web (workstream C)
-- `GET /onboard` serves `ui/onboard.html`. `GET /?tenant=<tid>` opens the existing dashboard for that tenant.
-- Uploads go as JSON `{filename, content_b64}`, not multipart. `.csv` and `.xlsx` are accepted.
-- The LLM only maps column headers to our schema (one call with the headers and 5 sample rows). Parsing, GST/TDS maths and validation are deterministic pandas.
-- `POST /api/onboard/preview` returns the mapping, parsed rows, row errors and the buyers found. `POST /api/onboard/commit` writes the tenant folder per §1 and returns `{tenant_id, join_code, bot_number}` (env `BOT_NUMBER`).
-- Recurring bills (wages, rent, EMI and so on: amount + day of month) are expanded into dated obligations for the next 120 days.
+## 6. Sign-up web (workstream C, simplified)
+- `GET /` serves the landing page (`landing-page/index.html`), and its CTAs link to `/onboard`. `GET /dashboard?tenant=<tid>` opens the dashboard for that tenant.
+- **Step 1** collects the owner's name, the business name, the WhatsApp number (10 digits, stored as `91XXXXXXXXXX`) and an optional bank balance. `POST /api/signup` creates an empty tenant (§1, no invoices, no bills) and returns `{tenant_id, join_code, bot_number}`.
+- **Step 2** offers two options. (1) Upload the Kab Tak? Excel workbook: sheets `invoices`, `obligations` and `position` with exactly the §1 columns; other sheets are ignored. `POST /api/onboard/excel {tenant_id, join_code, filename, content_b64}` (`ui/ingest.py`) checks each row, skips and reports bad rows, replaces the business's ledger and returns the first forecast. It is accepted only while the sign-up's join code is unused. (2) WhatsApp: a `wa.me/<BOT_NUMBER>` link pre-filled with "What is the status of my current cash flow?". Without an upload, a disclaimer and a Terms tick must be accepted first.
+- **The join code is bound to the signup number:** `tenants.claim` refuses it from any other number.
+- **A tenant with no data:** the bot asks for invoices and bills before answering any what-if. `add_invoice` may name a new buyer, who is then added to `profile.json`.
 
 ## 7. Demo tenants (workstream D)
 `mahesh-cnc` (moved by A) and a second business with a different shape: no overdraft, different buyers, a different season. There is also a messy sample spreadsheet for the onboarding demo.

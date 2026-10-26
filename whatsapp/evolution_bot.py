@@ -45,13 +45,26 @@ last_result: dict[str, dict] = {}  # sender -> engine result, charted after the 
 pending: dict[str, dict] = {}  # sender -> scenario awaiting yes/no (demo only)
 
 
+START = ("Tell me what money is coming in and going out, and I'll forecast from there:\n"
+         "• Add invoice: Sharma Traders, 50 thousand, dated today\n• I have a 30 thousand rent bill due 1 Nov, add it")
+
+
+def no_data(tid: str) -> bool:
+    """Signed up on the website without a spreadsheet and nothing added yet: a forecast would be empty."""
+    inv, obl, _ = ledger.load(tid)
+    return inv.empty and obl.empty
+
+
 def join(sender: str, code: str) -> str:
     tid = tenants.claim(code, sender)
     if not tid:
-        return "That code isn't valid, or it was already used. Check the code on your setup page and send *JOIN <6-digit code>* again."
+        return ("That code isn't valid, was already used, or was made for a different number. Send *JOIN <6-digit code>* "
+                "from the WhatsApp number you gave on the sign-up page.")
     for d in (asked, pending, last_result):  # a number that moves business starts clean
         d.pop(sender, None)
     prof = ledger.profile(tid)
+    if no_data(tid):
+        return f"Welcome, *{prof['business_name']}*! This number is now linked.\n\n{START}"
     b = prof["buyers"] or ["your buyer"]
     demo = "\n\n_Demo data is synthetic._" if prof.get("synthetic") else ""
     return (f"Welcome, *{prof['business_name']}*! This number is now linked. Try:\n"
@@ -62,9 +75,18 @@ def join(sender: str, code: str) -> str:
 def reply_for(sender: str, text: str) -> str:
     if m := JOIN.search(text):
         return join(sender, re.sub(r"\D", "", m.group(1)))
-    if not (tid := tenants.tenant_for(sender)):  # never answer a stranger from anyone's data
-        return (f"Hi! I don't know this number yet. Set up your business at {env('ONBOARD_URL', 'http://localhost:8000/onboard')}, "
-                "then send *JOIN <6-digit code>* here with the code the page gives you.")
+    if tid := tenants.tenant_for(sender):
+        return answer_for(sender, tid, text)
+    if tid := tenants.claim_phone(sender):  # first message from the number given at sign-up: link it, then answer
+        for d in (asked, pending, last_result):
+            d.pop(sender, None)
+        return f"Welcome, *{ledger.profile(tid)['business_name']}*! This number is now linked.\n\n{answer_for(sender, tid, text)}"
+    # never answer a stranger from anyone's data
+    return (f"Hi! I don't know this number yet. Set up your business at {env('ONBOARD_URL', 'http://localhost:8000/onboard')} "
+            "and then message us from the WhatsApp number you signed up with.")
+
+
+def answer_for(sender: str, tid: str, text: str) -> str:
     prof = ledger.profile(tid)
     words = re.findall(r"\w+", text.lower())  # voice transcripts come with punctuation ("Yes.")
     t = words[0] if words else ""
@@ -97,6 +119,8 @@ def reply_for(sender: str, text: str) -> str:
     if s.get("needs_clarification"):
         asked[sender] = (text, s["question"])
         return s["question"]
+    if not s["type"].startswith("add_") and no_data(tid):  # a what-if on an empty ledger would say "0% risk"
+        return f"I don't have any of your numbers yet. {START}"
     if supported is not None and s["type"] not in supported:  # don't ask to confirm what the engine will refuse
         return ("I can't model that yet.\nI can answer: *status*, *new order*, *buyer pays late*, *one-off expense*, "
                 "*payment from a buyer*, or save an *invoice* / *bill* you tell me about.\n"
@@ -217,7 +241,8 @@ if __name__ == "__main__":
             mock.patch(f"{__name__}.send_text") as st, mock.patch(f"{__name__}.send_chart") as sc, \
             mock.patch(f"{__name__}.engine_answer", return_value=result) as ea, \
             mock.patch(f"{__name__}.engine_undo") as eu, mock.patch(f"{__name__}.engine_reset", return_value=2) as er, \
-            mock.patch(f"{__name__}.parse_scenario", side_effect=late) as ps:
+            mock.patch(f"{__name__}.parse_scenario", side_effect=late) as ps, \
+            mock.patch(f"{__name__}.no_data", return_value=False) as nd:
         def say(text, sender, mid=None):
             assert c.post("/webhook", json=payload({"conversation": text}, sender, mid)).status_code == 200
             assert st.call_args[0][0] == sender
@@ -226,7 +251,7 @@ if __name__ == "__main__":
         # (a) a stranger gets the onboarding link; no engine, no parser, no demo-tenant fallback
         for t in ("what is my status?", "reset", "undo", "yes", "JOIN 12345"):
             r = say(t, X)
-            assert onboard in r and "JOIN" in r, r
+            assert onboard in r and "signed up with" in r, r
         with mock.patch.dict(os.environ, {"ONBOARD_URL": "https://kabtak.example/onboard"}):
             assert "https://kabtak.example/onboard" in say("hi", X)
         assert not (ps.called or ea.called or eu.called or er.called) and tenants.tenant_for(X) is None
@@ -244,6 +269,17 @@ if __name__ == "__main__":
             assert tr.call_args[0][1] is None  # a stranger has no buyers to hint
         assert tenants.tenant_for(B) == "biz-b" and "Om Textiles" in st.call_args[0][1] and "Ravi Mills" in st.call_args[0][1]
         assert not (ps.called or ea.called)
+
+        # (b2) signed up on the website with a number: its first message links it, no code typed; others can't use it
+        P = "917000000000"
+        tenants.new_join_code("biz-b", "+91 70000 00000")
+        assert "don't know this number" in say("What is the status of my current cash flow?", X) and tenants.tenant_for(X) is None
+        r = say("What is the status of my current cash flow?", P)
+        assert r.startswith("Welcome, *Om Textiles") and "now linked" in r and tenants.tenant_for(P) == "biz-b", r
+        assert "Welcome" not in say("What is the status of my current cash flow?", P)   # only the first message says hello
+        pending.pop(P, None)
+        asked.pop(P, None)
+        ps.reset_mock()
 
         # (c) each sender hits the engine with their own tenant and the parser with their own buyers, even interleaved
         say("Buyer A pays late?", A)
@@ -314,4 +350,11 @@ if __name__ == "__main__":
         n = st.call_count
         c.post("/webhook", json=payload({"stickerMessage": {}}, A))  # nothing to answer
         assert st.call_count == n
+        nd.return_value = True  # signed up on the website with no spreadsheet: ask for numbers, don't forecast nothing
+        with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
+            c.post("/webhook", json=payload({"conversation": "how are we doing?"}, A))
+        assert "don't have any of your numbers" in st.call_args[0][1] and "Add invoice" in st.call_args[0][1]
+        with mock.patch(f"{__name__}.parse_scenario", return_value=inv):
+            c.post("/webhook", json=payload({"conversation": "add an invoice"}, A))
+        assert "Save this?" in st.call_args[0][1]  # adding data still works
     print("ok")

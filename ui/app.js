@@ -658,7 +658,7 @@ function prefill(s) {
 function setStatus(msg, err) { const st = $("#status"); st.textContent = msg; st.className = `status${err ? " err" : ""}`; }
 
 form.addEventListener("input", (e) => (e.target === form.type ? syncFields() : showJson()));
-const TENANT = new URLSearchParams(location.search).get("tenant");   // /?tenant=<id>; none = the demo business
+const TENANT = new URLSearchParams(location.search).get("tenant");   // /dashboard?tenant=<id>; none = the demo business
 const post = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(TENANT ? { ...body, tenant: TENANT } : body) });
 // Runs a scenario through the engine and redraws; say(msg, err) reports progress. Returns true on success.
 async function run(s, btn, say) {

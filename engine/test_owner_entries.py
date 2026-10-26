@@ -47,7 +47,7 @@ def test_owner_entries():
         assert A.reset() == 2 and not ledger._owner(tenants.DEFAULT).exists() and same(A.answer({"type": "status"}))
 
         # rejected before anything is written
-        for bad in ({"type": "add_invoice", "party": "Bajaj", "amount_inr": 100_000, "date": T.isoformat()},
+        for bad in ({"type": "add_invoice", "party": " ", "amount_inr": 100_000, "date": T.isoformat()},
                     {"type": "add_obligation", "party": "x", "obligation": "supplier", "amount_inr": 1, "date": T.isoformat()},
                     {"type": "add_obligation", "party": "x", "obligation": "repair", "amount_inr": 1, "date": due},
                     {"type": "add_invoice", "party": "Buyer B", "amount_inr": 0, "date": T.isoformat()}):

@@ -28,11 +28,10 @@ def _state(tenant=DEFAULT):
         obl["date"] = pd.to_datetime(obl["date"]).dt.date
         # profile buyers in order, then any buyer that only appears in the invoices
         buyers = prof["buyers"] + [b for b in dict.fromkeys(inv["buyer"]) if b not in prof["buyers"]]
-        if not buyers:
-            raise ValueError(f"Tenant {tenant!r} has no buyers in its profile or invoices")
         km = arrival.fit(inv, prof["today"], buyers)
-        # a new customer is assumed to pay like the tenant's middle buyer by speed (lower middle if even)
-        ref = sorted(buyers, key=lambda b: arrival.median_delay(km, b))[(len(buyers) - 1) // 2]
+        # a new customer is assumed to pay like the tenant's middle buyer by speed (lower middle if even);
+        # a business with no buyers yet (signed up without data) gives a new order no extra slip
+        ref = sorted(buyers, key=lambda b: arrival.median_delay(km, b))[(len(buyers) - 1) // 2] if buyers else None
         live = inv[inv["paid_date"].isna()]            # open on today or planned future
         _CACHE[tenant] = dict(inv=inv, obl=obl, pos=pos, km=km, prof=prof, buyers=buyers, ref=ref,
                               how=arrival.source(inv, prof["today"], buyers), live=live.reset_index(drop=True))
@@ -143,7 +142,7 @@ def simulate(extra_delay=None, order=None, extra_obligations=None, n_paths=1000,
                  amount_inr=prm["gst_rate"] * (amt - bar)),
         ]
         slip = np.zeros(P, dtype=np.int64)
-        if noise:
+        if noise and S["ref"]:
             b = S["ref"]
             u = uniforms(buyers.index(b), [n_live])[:, 0]
             sd = arrival.sample_delay(km, b, np.zeros(1, dtype=np.int64), u)
