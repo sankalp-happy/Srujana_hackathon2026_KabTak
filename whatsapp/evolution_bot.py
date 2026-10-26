@@ -11,7 +11,7 @@ import os
 import threading
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 
 from engine import ledger, tenants
 from engine.answer import answer as engine_answer, undo as engine_undo, reset as engine_reset
@@ -37,8 +37,9 @@ try:
     from engine.answer import SUPPORTED as supported
 except ImportError:
     supported = None
-YES = {"हो", "होय", "हां", "हाँ", "yes", "y", "ok", "okay"}
-NO = {"नाही", "नको", "no", "n"}
+YES = {"हो", "होय", "हां", "हाँ", "ठीक", "yes", "y", "ok", "okay", "haan", "ha", "han", "ho", "hoy", "ji", "theek"}
+NO = {"नाही", "नको", "नहीं", "नही", "no", "n", "nahi", "nahin", "nai"}
+WORD = re.compile(r"[\wऀ-ॣ]+")  # \w alone splits Devanagari at vowel signs: "हाँ" -> "ह"
 JOIN = re.compile(r"\bjoin\b\W*((?:\d\s?){6})(?!\d)", re.I)  # "JOIN 123456", "join 123 456", "Join 1 2 3 4 5 6." (voice)
 asked: dict[str, tuple[str, str]] = {}  # sender -> (original text, our clarification question)
 last_result: dict[str, dict] = {}  # sender -> engine result, charted after the reply
@@ -75,20 +76,29 @@ def join(sender: str, code: str) -> str:
 def reply_for(sender: str, text: str) -> str:
     if m := JOIN.search(text):
         return join(sender, re.sub(r"\D", "", m.group(1)))
-    if tid := tenants.tenant_for(sender):
-        return answer_for(sender, tid, text)
-    if tid := tenants.claim_phone(sender):  # first message from the number given at sign-up: link it, then answer
+    if tid := tenants.claim_phone(sender):  # first message from the number given at sign-up: link it (even if it was linked to another business), then answer
         for d in (asked, pending, last_result):
             d.pop(sender, None)
         return f"Welcome, *{ledger.profile(tid)['business_name']}*! This number is now linked.\n\n{answer_for(sender, tid, text)}"
+    if tid := tenants.tenant_for(sender):
+        return answer_for(sender, tid, text)
     # never answer a stranger from anyone's data
     return (f"Hi! I don't know this number yet. Set up your business at {env('ONBOARD_URL', 'http://localhost:8000/onboard')} "
             "and then message us from the WhatsApp number you signed up with.")
 
 
+def run(sender: str, tid: str, s: dict) -> str:
+    try:
+        r = engine_answer(s, tenant=tid)
+    except ValueError as e:
+        return str(e)
+    last_result[sender] = r
+    return format_reply(r)
+
+
 def answer_for(sender: str, tid: str, text: str) -> str:
     prof = ledger.profile(tid)
-    words = re.findall(r"\w+", text.lower())  # voice transcripts come with punctuation ("Yes.")
+    words = WORD.findall(text.lower())  # voice transcripts come with punctuation ("Yes.")
     t = words[0] if words else ""
     if t == "undo":  # owner entries: undo the last one, or reset to the base data (confirmed first)
         e = engine_undo(tenant=tid)
@@ -100,12 +110,7 @@ def answer_for(sender: str, tid: str, text: str) -> str:
         if pending[sender]["type"] == "reset":
             pending.pop(sender)
             return f"Back to the base data: removed {engine_reset(tenant=tid)} added entries."
-        try:
-            r = engine_answer(pending.pop(sender), tenant=tid)
-        except ValueError as e:
-            return str(e)
-        last_result[sender] = r
-        return format_reply(r)
+        return run(sender, tid, pending.pop(sender))
     if sender in pending and t in NO:
         pending.pop(sender)
         return "OK, please say it again."
@@ -114,8 +119,8 @@ def answer_for(sender: str, tid: str, text: str) -> str:
         text = f"{orig}\nQuestion asked: {q}\nOwner's answer: {text}"
     try:
         s = parse_scenario(text, buyers=prof["buyers"], today=prof["today"])
-    except Exception:  # LLM down / key missing
-        return "Sorry, I couldn't understand that. Please rephrase."
+    except Exception:  # LLM down / key missing / timed out: not the owner's fault
+        return "I'm a bit busy right now, please send that again in a minute."
     if s.get("needs_clarification"):
         asked[sender] = (text, s["question"])
         return s["question"]
@@ -125,6 +130,8 @@ def answer_for(sender: str, tid: str, text: str) -> str:
         return ("I can't model that yet.\nI can answer: *status*, *new order*, *buyer pays late*, *one-off expense*, "
                 "*payment from a buyer*, or save an *invoice* / *bill* you tell me about.\n"
                 f"Buyers I know: {', '.join(prof['buyers'])}.")
+    if s["type"] == "status":  # saves nothing: answer at once
+        return run(sender, tid, s)
     pending[sender] = s
     return readback(s, prof["params"].get("gst_rate", 0.18))
 
@@ -159,6 +166,7 @@ def handle(d: dict, sender: str) -> None:
     msg = d.get("message") or {}
     text = msg.get("conversation") or (msg.get("extendedTextMessage") or {}).get("text") or ""
     heard = "audioMessage" in msg
+    doc = "documentMessage" in msg or "documentWithCaptionMessage" in msg
     with lock:
         try:
             if heard:
@@ -174,6 +182,9 @@ def handle(d: dict, sender: str) -> None:
                 out = reply_for(sender, text)
                 if heard:
                     out = f'_Heard: "{text}"_\n\n{out}'
+            elif doc:
+                out = (f"I can't open files here. Excel files are uploaded on the sign-up page, before you link this number: "
+                       f"{env('ONBOARD_URL', 'http://localhost:8000/onboard')}\nHere you can type or send a voice note.")
             elif not heard:
                 return
             send_text(sender, out)
@@ -189,7 +200,12 @@ def handle(d: dict, sender: str) -> None:
 @app.post("/webhook")
 @app.post("/webhook/{event:path}")  # also accepts webhook-by-events URLs, e.g. /webhook/messages-upsert
 async def webhook(request: Request, tasks: BackgroundTasks, event: str = ""):
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Body must be JSON")
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Body must be a JSON object")
     if str(body.get("event", "")).lower().replace("_", ".") != "messages.upsert":
         return {"ok": True}
     d = body["data"]
@@ -329,7 +345,8 @@ if __name__ == "__main__":
                                    baseline={"worst_week": {"p_shortfall": 0.02}})
             assert "vs current forecast" in say("yes", A)
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
-            assert "Please confirm" in say("what is the status", A)  # even status is confirmed first
+            n = ea.call_count
+            assert "Riskiest week" in say("what is the status", A) and ea.call_count == n + 1 and A not in pending  # status saves nothing: no confirm step
         pending.clear()
         ea.side_effect = ValueError("Unknown party: Nobody")
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="delay_payment", party="Nobody", days=30)):
@@ -350,6 +367,28 @@ if __name__ == "__main__":
         n = st.call_count
         c.post("/webhook", json=payload({"stickerMessage": {}}, A))  # nothing to answer
         assert st.call_count == n
+        # (f) yes/no in Devanagari and romanised Hindi/Marathi: whole words survive tokenising
+        assert [WORD.findall(w.lower())[0] for w in ("हाँ", "होय", "नाही", "Haan.", "नहीं")] == ["हाँ", "होय", "नाही", "haan", "नहीं"]
+        for yes, no in (("हाँ", "नाही"), ("होय", "नको"), ("Haan.", "nahi"), ("ji", "Nahin!"), ("हां।", "नहीं")):
+            say("Buyer A pays late?", A)
+            n = ea.call_count
+            say(yes, A)
+            assert ea.call_count == n + 1 and A not in pending, yes
+            say("Buyer A pays late?", A)
+            assert "say it again" in say(no, A) and ea.call_count == n + 1 and A not in pending, no
+        # (g) a phone already linked to one business that signs up again moves to the new one
+        tenants.new_join_code("biz-b", f"+{A}")
+        r = say("hi", A)
+        assert tenants.tenant_for(A) == "biz-b" and r.startswith("Welcome, *Om Textiles"), r
+        tenants.link(A, "biz-a")
+        pending.clear()
+        # (h) a slow or dead LLM is not the owner's fault; a file gets the sign-up page; a non-JSON body is a 400
+        with mock.patch(f"{__name__}.parse_scenario", side_effect=TimeoutError):
+            assert "a bit busy" in say("Buyer A pays late?", A)
+        n = st.call_count
+        c.post("/webhook", json=payload({"documentMessage": {"fileName": "books.xlsx"}}, A))
+        assert st.call_count == n + 1 and onboard in st.call_args[0][1] and "Excel" in st.call_args[0][1]
+        assert c.post("/webhook", content=b"not json").status_code == 400 and c.post("/webhook", json=[1]).status_code == 400
         nd.return_value = True  # signed up on the website with no spreadsheet: ask for numbers, don't forecast nothing
         with mock.patch(f"{__name__}.parse_scenario", return_value=dict(order, type="status", party=None, amount_inr=None, days=None)):
             c.post("/webhook", json=payload({"conversation": "how are we doing?"}, A))

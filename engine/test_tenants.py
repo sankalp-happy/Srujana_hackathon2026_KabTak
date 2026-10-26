@@ -133,6 +133,19 @@ def test_tenants():
     A.answer({"type": "add_invoice", "party": "Sharma Traders", "amount_inr": 50_000, "date": TODAY.isoformat()}, "signed-up")
     assert ledger.profile("signed-up")["buyers"] == ["Sharma Traders"]
     assert A.answer({"type": "delay_payment", "party": "Sharma Traders", "days": 30}, "signed-up")["today"]["receivable_inr"] > 0
+
+    # another process (the bot, an Excel re-upload) rewrites a tenant's files: no reload() here, the next answer sees it
+    assert A.answer(STATUS, "mixed-bag")["obligations"] == []
+    f = tenants.tenant_dir("mixed-bag") / "obligations.csv"
+    f.write_text("date,label,kind,amount_inr\n" + f"{TODAY + timedelta(days=12)},Rent,rent,45000\n")
+    assert [o["label"] for o in A.answer(STATUS, "mixed-bag")["obligations"]] == ["Rent"]
+    owner = tenants.tenant_dir("mixed-bag") / "owner_entries.json"
+    owner.write_text(json.dumps([{"table": "obligations", "row": {"date": str(TODAY + timedelta(days=20)), "label": "Repair",
+                                                                  "kind": "supplier", "amount_inr": 9_000}}]))
+    assert [o["label"] for o in A.answer(STATUS, "mixed-bag")["obligations"]] == ["Rent", "Repair"]
+    owner.unlink()
+    f.write_text("date,label,kind,amount_inr\n")
+    assert A.answer(STATUS, "mixed-bag")["obligations"] == []
     A.reload()
 
 

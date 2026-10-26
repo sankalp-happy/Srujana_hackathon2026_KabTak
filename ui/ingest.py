@@ -252,6 +252,16 @@ if __name__ == "__main__":
         except ValueError as e:
             print("refused:", e)
 
+    here = Path(__file__).resolve().parent   # the downloadable workbooks (ui/make_template.py) load as they are, no skipped rows
+    t_inv, t_obl, t_pos, t_errs = read_workbook((here / "kabtak-template.xlsx").read_bytes())
+    assert (len(t_inv), len(t_obl), t_errs) == (2, 2, []) and t_pos and not t_inv[1]["paid_date"] and t_inv[0]["paid_date"]
+    mah = here.parent / "data" / "tenants" / "mahesh-cnc"
+    m_inv, m_obl, m_pos, m_errs = read_workbook((here / "kabtak-demo.xlsx").read_bytes())
+    csv = pd.read_csv(mah / "invoices.csv")
+    assert m_errs == [] and len(m_inv) == len(csv) and sum(x["taxable_inr"] for x in m_inv) == csv.taxable_inr.sum()
+    assert sum(not x["paid_date"] for x in m_inv) == csv.paid_date.isna().sum() and len(m_obl) == len(pd.read_csv(mah / "obligations.csv"))
+    assert m_pos == json.loads((mah / "position.json").read_text()) and {x["buyer"] for x in m_inv} == set(json.loads((mah / "profile.json").read_text())["buyers"])
+
     tenants.DATA_ROOT = Path(tempfile.mkdtemp())   # same effect as KABTAK_DATA=<tmp>: tenant_dir reads it per call
     tid = write_tenant("Patil Steel Works", {"bank_inr": 250000}, owner_name="Ramesh", phone="919876543210")
     d = tenants.tenant_dir(tid)

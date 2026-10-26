@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kab Tak? Cash-flow answers on WhatsApp</title>
-<meta name="description" content="Ask in Hindi on WhatsApp. Kab Tak? plays out 1,000 versions of your next 90 days, shows which week cash may run short, and finds the cheapest fix.">
+<meta name="description" content="Ask in Hindi on WhatsApp. Kab Tak? plays out 1,000 versions of your next 90 days, shows which week cash may run short, and how late each buyer can pay before it does.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Yatra+One&family=Mukta:wght@400;500;700;800&family=Noto+Sans+Kannada:wght@700&family=Noto+Sans+Tamil:wght@700&display=swap" rel="stylesheet">
@@ -291,7 +291,7 @@ main > .board + .board { margin-top: 10px; }
           <span id="ask-q" lang="hi">क्या ७ तारीख को तनख़्वाह दे पाऊँगा?</span>
         </p>
         <h1 id="hero-title"><span>One voice note.</span> <span>A thousand futures.</span></h1>
-        <p class="lede">Ask in <b>Hindi</b>, Marathi or English on WhatsApp. Kab Tak? plays out <b>1,000 versions</b> of your next 90 days, shows the week cash may run short, and finds the cheapest fix.</p>
+        <p class="lede">Ask in <b>Hindi</b>, Marathi or English on WhatsApp. Kab Tak? plays out <b>1,000 versions</b> of your next 90 days, shows the week cash may run short, and how late each buyer can pay before it does.</p>
         <div class="cta-row">
           <a class="plate" href="/onboard">
             Sign up <span class="deva" lang="hi">· दुकान जोड़ें</span>
@@ -308,7 +308,7 @@ main > .board + .board { margin-top: 10px; }
         <div class="axis" aria-hidden="true"><span>Today, 26 Oct</span><span>₹0 line dashed</span><span>23 Jan</span></div>
         <div class="weeks" id="weeks" aria-label="Chance of running short, each week (percent)"></div>
         <div class="verdict" id="verdict" aria-live="polite"></div>
-        <figcaption class="panel-foot"><span>Synthetic demo shop · numbers from the Kab Tak? engine</span><button class="replay" id="replay" type="button">Play again</button></figcaption>
+        <figcaption class="panel-foot"><span>Synthetic demo shop · illustrative example, not a live forecast</span><button class="replay" id="replay" type="button">Play again</button></figcaption>
       </figure>
     </div>
   </section>
@@ -316,8 +316,8 @@ main > .board + .board { margin-top: 10px; }
   <section class="board cream how" id="how" aria-labelledby="how-title">
     <span class="rivets" aria-hidden="true"></span>
     <div class="wrap">
-      <h2 id="how-title">From one question to the cheapest fix.</h2>
-      <p class="intro">You ask the way you'd ask your CA. Four steps later you have one answer and one thing to do, and the working is there for your CA to check.</p>
+      <h2 id="how-title">From one question to a clear answer.</h2>
+      <p class="intro">You ask the way you'd ask your CA. You get one answer, and the working is there for your CA to check. Fix suggestions are the next step.</p>
       <ol class="steps">
         <li class="step" data-demo="voice">
           <div class="num" aria-hidden="true">१<small>STEP 1</small></div>
@@ -344,7 +344,7 @@ main > .board + .board { margin-top: 10px; }
           <div>
             <h3>Every invoice gets a range, not a due date.</h3>
             <p>Buyers rarely pay on the day. Kab Tak? learns when each buyer actually pays, then asks the question in its name: kab tak? How many days late can each buyer be before you run short?</p>
-            <p class="note">Dots show an illustrative spread of payment days. The yellow limits come from the engine.</p>
+            <p class="note">Dots show an illustrative spread of payment days; the limits shown are illustrative too.</p>
           </div>
           <div class="demo" id="arrivals" aria-label="How late each buyer can pay before a shortfall: Buyer A 38 days, Buyer B 61 days, CPSE 90 days."></div>
         </li>
@@ -354,16 +354,17 @@ main > .board + .board { margin-top: 10px; }
           <div>
             <h3>1,000 futures, checked week by week.</h3>
             <p>Each of the 1,000 runs mixes those payment ranges with your wages, EMIs, GST and supplier bills. Every week gets one number: the chance you run short. The limit is 5%.</p>
-            <p class="note">The worst week here is 14 Dec: advance tax, GST and the GST on the new order all land together.</p>
+            <p class="note">In this example the worst week is 14 Dec: advance tax, GST and the GST on the new order all land together.</p>
           </div>
           <div class="demo" id="risk" aria-label="Weekly chance of a shortfall, from 0% to 49%; the week of 14 December is highest at 49%."></div>
         </li>
 
         <li class="step" data-demo="fixes">
-          <div class="num" aria-hidden="true">४<small>STEP 4</small></div>
+          <div class="num" aria-hidden="true">४<small>COMING NEXT</small></div>
           <div>
-            <h3>The cheapest fix, priced in rupees.</h3>
-            <p>Discount an invoice on TReDS, draw more on the overdraft, pay a supplier later, or send a late buyer an MSMED heads-up. Kab Tak? finds the cheapest mix that gets the risk under 5%. You decide.</p>
+            <h3>Coming next: the cheapest fix, priced in rupees.</h3>
+            <p>Today Kab Tak? shows the risk and how late each buyer can pay. Next we want to price the ways out: discount an invoice on TReDS, ask a buyer for shorter terms, pay a supplier later. That is not built yet.</p>
+            <p class="note">The panel is a mock-up with made-up costs.</p>
           </div>
           <div class="demo" id="fixdemo"></div>
         </li>
@@ -389,7 +390,7 @@ main > .board + .board { margin-top: 10px; }
           <svg viewBox="0 0 400 180" role="img" aria-label="Many simulated paths. About half dip below zero in mid-December." id="fansvg">
             <line x1="0" y1="140" x2="400" y2="140" stroke="#fff6dd" stroke-dasharray="6 6" opacity=".6"/>
           </svg>
-          <p class="tagline">The same shop: in 49 out of 100 futures, cash runs out the week of 14 Dec.</p>
+          <p class="tagline">An example shop: in 49 out of 100 futures, cash runs out the week of 14 Dec.</p>
         </figure>
       </div>
       <table>
@@ -398,7 +399,7 @@ main > .board + .board { margin-top: 10px; }
           <tr><td>A dashboard in English</td><td>A voice note on WhatsApp, in Hindi</td></tr>
           <tr><td>One forecast line</td><td>1,000 futures and the chance of running short each week</td></tr>
           <tr><td>Invoices counted on their due date</td><td>A payment range for each buyer, and how late they can be</td></tr>
-          <tr><td>"You may be short"</td><td>The cheapest fix, in rupees, under a 5% risk limit</td></tr>
+          <tr><td>"You may be short"</td><td>The chance of a shortfall each week, and how many days late each buyer can pay (fix suggestions are coming next)</td></tr>
         </tbody>
       </table>
     </div>
@@ -409,7 +410,7 @@ main > .board + .board { margin-top: 10px; }
     <div class="wrap">
       <p class="deva-line" lang="hi">पैसा कब तक चलेगा? पूछिए।</p>
       <h2 id="close-title">Ask your first question this week.</h2>
-      <p>Upload your Tally export or a spreadsheet of invoices and bills. You get a join code for the WhatsApp bot, and your shop's data stays yours.</p>
+      <p>Fill in the Kab Tak? Excel template with your invoices and bills, or just start typing them on WhatsApp. Your shop's data stays yours.</p>
       <a class="plate" href="/onboard">
         Sign up <span class="deva" lang="hi">· दुकान जोड़ें</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -460,7 +461,7 @@ if (!reduce) {
   })();
 }
 
-// Synthetic demo result from fixtures/engine_result.json (balance in ₹ lakh, daily)
+// Illustrative placeholder numbers (fixtures/engine_result.json, placeholder: true), not a live engine run (balance in ₹ lakh, daily)
 const R = {
   transcript: "नए बायर का १२ लाख का ऑर्डर ९० दिन की उधारी पर ले लूँ?",
   fan: {"p10":[9.92,10.03,10.18,10.35,10.53,10.71,10.9,5.7,5.89,6.1,2.3,2.51,-0.68,-0.47,-0.26,-0.05,0.17,0.38,0.6,0.82,1.04,1.26,1.48,1.7,1.93,-0.45,-0.23,-0.0,0.22,0.45,2.59,2.82,3.05,3.28,3.5,3.73,3.96,4.19,4.42,4.65,3.68,3.91,0.74,0.97,1.2,1.43,1.67,1.9,2.13,2.36,1.1,1.33,1.56,1.8,2.03,-2.49,-2.26,-2.03,-1.79,-1.56,0.6,0.83,1.07,1.31,1.54,1.78,2.01,2.25,2.49,2.72,2.96,2.0,2.23,-0.93,-0.69,-0.46,-0.22,0.02,0.26,0.49,0.73,0.97,1.21,1.45,1.69,1.92,-0.44,-0.2,0.04,0.28],"p50":[10.26,10.51,10.77,11.03,11.28,11.54,11.8,6.65,6.91,7.17,3.43,3.68,0.54,0.8,1.05,1.31,1.57,1.82,2.08,2.34,2.59,2.85,3.11,3.36,3.62,1.28,1.53,1.79,2.05,2.31,4.48,4.74,5.0,5.25,5.51,5.77,6.02,6.28,6.54,6.79,5.85,6.11,2.96,3.22,3.48,3.73,3.99,4.25,4.51,4.76,3.52,3.78,4.03,4.29,4.55,0.04,0.3,0.56,0.81,1.07,3.25,3.5,3.76,4.02,4.27,4.53,4.79,5.05,5.3,5.56,5.82,4.87,5.13,1.99,2.24,2.5,2.76,3.01,3.27,3.53,3.78,4.04,4.3,4.55,4.81,5.07,2.73,2.98,3.24,3.5],"p90":[10.6,10.99,11.36,11.71,12.04,12.37,12.7,7.61,7.93,8.24,4.55,4.86,1.76,2.06,2.37,2.67,2.96,3.26,3.56,3.85,4.15,4.44,4.73,5.03,5.32,3.01,3.3,3.59,3.87,4.16,6.37,6.66,6.94,7.23,7.52,7.8,8.09,8.37,8.65,8.94,8.02,8.3,5.19,5.47,5.75,6.03,6.32,6.6,6.88,7.16,5.94,6.22,6.5,6.78,7.06,2.58,2.86,3.14,3.42,3.7,5.9,6.17,6.45,6.73,7.01,7.29,7.56,7.84,8.12,8.4,8.67,7.75,8.03,4.9,5.18,5.46,5.73,6.01,6.28,6.56,6.84,7.11,7.39,7.66,7.94,8.21,5.89,6.16,6.44,6.71]},
@@ -555,12 +556,6 @@ async function play() {
   }
   cells[worst].classList.add("worst");
   verdictEl.innerHTML = `<div class="big">Week of ${fmtDay(R.weeks[worst][0])}: ${pct(R.plan.before)}% chance of running short</div>`;
-  await sleep(1400); if (id !== run) return;
-  verdictEl.insertAdjacentHTML("beforeend", `<div class="fix">Cheapest fix: TReDS on INV-2041 + ₹4 L more OD for 3 weeks, costing ${rupees(R.plan.cost)}.</div><div class="fix">Risk with the fix: <b class="risk" id="riskn">${pct(R.plan.before)}%</b> <span class="stamp" id="okstamp" hidden>Under 5%</span></div>`);
-  const n = document.getElementById("riskn");
-  for (let v = pct(R.plan.before); v >= pct(R.plan.after); v--) { if (id !== run) return; n.textContent = v + "%"; await sleep(28); }
-  cells[worst].classList.remove("ng", "watch"); cells[worst].classList.add("ok"); cells[worst].textContent = pct(R.plan.after);
-  document.getElementById("okstamp").hidden = false;
 }
 document.getElementById("replay").addEventListener("click", play);
 let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(play, 250); });

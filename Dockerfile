@@ -10,6 +10,6 @@ COPY fixtures fixtures
 COPY data data
 # Build the demo tenant's synthetic ledger (data/tenants/mahesh-cnc) into the image so the first request is not slow (deterministic, seed 7)
 RUN python -m engine.ledger
-ENV HOST=0.0.0.0 PORT=8000
+ENV HOST=0.0.0.0 PORT=8000 PYTHONUNBUFFERED=1
 EXPOSE 8000
 CMD ["python", "ui/server.py"]

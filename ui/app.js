@@ -85,7 +85,7 @@ function renderVerdict() {
   } else if (l.k === "ok") {
     action = `<p class="lead"><b>No fixes needed.</b></p>`;
   } else {
-    action = `<p class="lead"><b>No fixes available.</b> <span class="muted">The engine found nothing that lowers this risk.</span></p>`;
+    action = `<p class="lead"><b>Fix suggestions are coming next.</b> <span class="muted">Not built yet: Kab Tak? shows the risk and how late each buyer can pay, but doesn't price fixes.</span></p>`;
   }
   if (R.order) action += `<p><b>This order:</b> ${esc(orderAnswer(R.order))}</p>`;
 
@@ -321,8 +321,8 @@ function fixesHTML() {
   const fixes = R.fixes || [], plan = R.plan;
   if (!fixes.length && !plan) {
     const ok = R.worst_week.p_shortfall <= R.risk_target;
-    return `<div class="empty"><b>${ok ? "No fixes needed" : "No fixes available"}</b>
-      <p class="muted">${ok ? "Every week is inside the risk limit." : "The engine returned no fixes for this scenario."}</p></div>`;
+    return `<div class="empty"><b>${ok ? "No fixes needed" : "Fix suggestions are coming next"}</b>
+      <p class="muted">${ok ? "Every week is inside the risk limit." : "Not built yet: Kab Tak? doesn't price fixes for this risk."}</p></div>`;
   }
   const inPlan = new Set(plan ? plan.fix_ids : []);
   const t = R.risk_target;

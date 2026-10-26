@@ -144,6 +144,19 @@ def _files(tenant):
     return [tenant_dir(tenant) / f for f in ("profile.json", "invoices.csv", "obligations.csv", "position.json")]
 
 
+_STAMP = {}   # tenant -> (mtime, size) of its files when the caches were filled
+
+
+def _fresh(tenant):
+    """Another process (the bot, the web server, an Excel upload) may have rewritten the tenant's files: drop the caches if so."""
+    stat = lambda f: (lambda st: (st.st_mtime_ns, st.st_size))(f.stat()) if f.exists() else None
+    now = tuple(stat(f) for f in _files(tenant) + [_owner(tenant)])
+    if _STAMP.get(tenant, now) != now:
+        from engine.answer import reload
+        reload(tenant)
+    _STAMP[tenant] = now
+
+
 def _ensure(tenant):
     """The demo tenant's generated files are git-ignored: rebuild them if missing. Any other tenant must exist."""
     if tenant == DEFAULT and not all(f.exists() for f in _files(tenant)):
@@ -154,6 +167,7 @@ def _ensure(tenant):
 
 def profile(tenant=DEFAULT):
     """profile.json with `today` as a date (None = the real date) and `params` merged over DEFAULTS."""
+    _fresh(tenant)
     if tenant not in _RAW:
         _ensure(tenant)
         _RAW[tenant] = json.loads((tenant_dir(tenant) / "profile.json").read_text())
