@@ -6,6 +6,8 @@ Built during the 48-hour hackathon (24–26 Oct 2026). A working prototype: it f
 
 Live demo: https://172-198-161-228.sslip.io (sign-up, dashboard and the WhatsApp bot).
 
+**Final project report for the judges:** [docs/report/PROJECT_REPORT.md](docs/report/PROJECT_REPORT.md) ([PDF](docs/report/PROJECT_REPORT.pdf)): what was built, how it was tested, and what is not done.
+
 ## What it does today
 
 An owner signs up on a website, optionally uploads an Excel workbook of invoices and bills, then asks questions on WhatsApp by text or voice note ("What if Buyer A pays a month late?", "Can I take a ₹12 lakh order on 90-day terms?", "Add invoice: Sharma Traders, 50 thousand, dated today"). Kab Tak?:
