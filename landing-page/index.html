@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kab Tak? Cash-flow answers on WhatsApp</title>
+<meta name="description" content="Ask in Hindi on WhatsApp. Kab Tak? plays out 1,000 versions of your next 90 days, shows which week cash may run short, and finds the cheapest fix.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Yatra+One&family=Mukta:wght@400;500;700;800&family=Noto+Sans+Kannada:wght@700&family=Noto+Sans+Tamil:wght@700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --yellow: #f2b705;
+  --yellow-deep: #d99a00;
+  --red: #c8201e;
+  --red-deep: #8f1210;
+  --teal: #0e5e6f;
+  --teal-deep: #083f4b;
+  --teal-ink: #cfe9ec;
+  --ink: #1a1a1a;
+  --cream: #fff6dd;
+  --cream-2: #f3e6bf;
+  --ok: #2f9e6a;
+  --display: "Yatra One", "Mukta", serif;
+  --body: "Mukta", "Noto Sans Devanagari", "Noto Sans Kannada", "Noto Sans Tamil", system-ui, sans-serif;
+  --gutter: clamp(16px, 4vw, 56px);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scrollbar-color: var(--red) var(--ink); }
+body {
+  margin: 0; background: var(--ink); color: var(--ink);
+  font: 400 18px/1.55 var(--body); font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--red); color: var(--cream); }
+:focus-visible { outline: 3px solid var(--red); outline-offset: 3px; border-radius: 2px; }
+a { color: inherit; text-underline-offset: 0.2em; text-decoration-thickness: 2px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; line-height: 1.05; margin: 0; text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+.deva { font-family: var(--body); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Boards: enamel on tin, black outer rule, cream pinstripe, rivets at the corners */
+.board {
+  position: relative; margin: 0 auto; padding: clamp(28px, 5vw, 64px) var(--gutter);
+  border: 6px solid var(--ink); box-shadow: inset 0 0 0 4px var(--cream), inset 0 0 0 9px var(--ink);
+  background-image: var(--grain); background-blend-mode: multiply;
+}
+.board::before, .board::after, .rivets::before, .rivets::after {
+  content: ""; position: absolute; width: 12px; height: 12px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f4f4f0, #8a8a84 60%, #4b4b46);
+  box-shadow: 0 1px 1px rgba(0,0,0,.5);
+}
+.board::before { top: 18px; left: 18px; } .board::after { top: 18px; right: 18px; }
+.rivets::before { bottom: 18px; left: 18px; } .rivets::after { bottom: 18px; right: 18px; }
+.cream { background-color: var(--cream); }
+.red { background-color: var(--red); color: var(--cream); }
+.teal { background-color: var(--teal); color: var(--cream); }
+.wrap { max-width: 1240px; margin: 0 auto; }
+
+/* Painted plate button */
+.plate {
+  display: inline-flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 26px 12px;
+  background: var(--red); color: var(--cream); border: 3px solid var(--ink); border-radius: 6px;
+  font: 400 clamp(20px, 2vw, 24px)/1 var(--display); text-decoration: none; cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--cream), 0 6px 14px rgba(26,26,26,.28);
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s;
+}
+.plate:hover { transform: translateY(-2px); background: var(--red-deep); box-shadow: inset 0 0 0 2px var(--cream), 0 10px 22px rgba(26,26,26,.34); }
+.plate:active { transform: translateY(1px); box-shadow: inset 0 0 0 2px var(--cream), 0 3px 8px rgba(26,26,26,.3); }
+.plate svg { width: 22px; height: 22px; flex: none; }
+.plate .deva { font-size: .8em; opacity: .9; }
+.plate.small { min-height: 44px; padding: 6px 18px 8px; font-size: 18px; }
+
+/* Header */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px var(--gutter); background: var(--ink); color: var(--cream); }
+.logo { display: flex; align-items: baseline; gap: 10px; text-decoration: none; font-family: var(--display); font-size: 28px; color: var(--yellow); }
+.logo .deva { font-family: var(--display); color: var(--cream); font-size: 24px; }
+.top nav { display: flex; align-items: center; gap: clamp(14px, 2.4vw, 32px); font-weight: 500; }
+.top nav a:not(.plate) { text-decoration: none; padding: 10px 0; }
+.top nav a:not(.plate):hover { color: var(--yellow); text-decoration: underline; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(28px, 4vw, 64px); align-items: center; max-width: 1240px; }
+.ask {
+  display: inline-flex; align-items: center; gap: 10px; margin-bottom: 22px; padding: 8px 18px 10px 10px;
+  background: var(--cream); border: 3px solid var(--ink); border-radius: 26px 26px 26px 6px;
+  font-size: clamp(17px, 1.6vw, 21px); font-weight: 700;
+}
+.ask .mic { width: 34px; height: 34px; border-radius: 50%; background: var(--red); display: grid; place-items: center; flex: none; }
+.ask .mic svg { width: 18px; height: 18px; }
+/* Hero question wipe: a soft-edged mask slides off right-to-left, then back on left-to-right.
+   The mask is 3x the text width; position 0 shows it all, 100% hides it all. */
+#ask-q {
+  display: inline-block; white-space: nowrap;
+  -webkit-mask-image: linear-gradient(90deg, #000 45%, transparent 55%); mask-image: linear-gradient(90deg, #000 45%, transparent 55%);
+  -webkit-mask-size: 300% 100%; mask-size: 300% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: 0 0; mask-position: 0 0;
+}
+.hero h1 { font-size: clamp(40px, 4.3vw, 66px); letter-spacing: -0.01em; text-shadow: 3px 4px 0 var(--red); }
+.hero h1 span { display: block; }
+.hero .lede { margin: 20px 0 28px; max-width: 36ch; font-size: clamp(19px, 1.7vw, 23px); font-weight: 500; line-height: 1.45; }
+.hero .lede b { font-weight: 800; }
+.cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 26px; }
+.cta-row .more { font-weight: 700; text-decoration: underline; }
+
+/* Signature panel: 1,000 futures */
+.panel {
+  --muted: #c9c2ad; background: var(--ink); color: var(--cream); border: 4px solid var(--ink); border-radius: 8px;
+  box-shadow: inset 0 0 0 3px var(--cream), 0 18px 36px rgba(26,26,26,.3); padding: 22px 22px 18px;
+}
+.q { font-size: 17px; font-weight: 700; line-height: 1.4; }
+.q small { display: block; font-size: 15px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+.counter { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 14px 0 6px; font-size: 15px; color: var(--muted); }
+.counter b { font: 400 30px/1 var(--display); color: var(--yellow); letter-spacing: .02em; }
+canvas { display: block; width: 100%; height: clamp(180px, 18vw, 230px); }
+.axis { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 4px; }
+.weeks { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; margin-top: 12px; }
+.wk {
+  min-height: 34px; display: grid; place-items: center; border-radius: 3px; font-size: 12px; font-weight: 700;
+  background: #2b2b2b; color: var(--muted); transition: background-color .3s, color .3s, transform .4s var(--ease);
+}
+.wk.ok { background: #237a52; color: var(--cream); }
+.wk.watch { background: var(--yellow); color: var(--ink); }
+.wk.ng { background: var(--red); color: var(--cream); }
+.wk.worst { outline: 3px solid var(--cream); transform: scale(1.12); z-index: 1; }
+.verdict { margin-top: 14px; min-height: 104px; border-top: 2px dashed rgba(255,246,221,.4); padding-top: 12px; font-size: 16px; line-height: 1.4; }
+.verdict .big { font: 400 24px/1.15 var(--display); }
+.verdict .fix { margin-top: 6px; color: var(--muted); }
+.risk { color: var(--yellow); font: 400 24px/1 var(--display); }
+.stamp { display: inline-block; padding: 1px 10px 3px; border: 2px solid currentColor; border-radius: 4px; font-weight: 800; font-size: 14px; transform: rotate(-3deg); }
+.panel-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.replay { background: none; border: 2px solid var(--muted); color: var(--cream); border-radius: 4px; padding: 6px 12px; min-height: 36px; font: 700 14px var(--body); cursor: pointer; }
+.replay:hover { background: #2b2b2b; }
+
+/* How it works: one numbered sequence in a margin column */
+.how h2, .diff h2, .close h2 { font-size: clamp(36px, 4.6vw, 64px); }
+.how h2 { text-shadow: 2px 3px 0 var(--yellow); max-width: 18ch; }
+.intro { margin-top: 14px; max-width: 58ch; font-size: 20px; }
+.steps { list-style: none; margin: clamp(36px, 5vw, 64px) 0 0; padding: 0; }
+.step { display: grid; grid-template-columns: clamp(64px, 9vw, 128px) minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(18px, 3vw, 48px); padding: clamp(28px, 4vw, 48px) 0; border-top: 3px solid var(--ink); align-items: start; }
+.num { font: 400 clamp(56px, 8vw, 112px)/.8 var(--display); color: var(--red); text-shadow: 2px 3px 0 var(--ink); }
+.num small { display: block; font: 700 14px/1 var(--body); color: var(--ink); text-shadow: none; margin-top: 12px; letter-spacing: .04em; }
+.step h3 { font-size: clamp(28px, 2.8vw, 38px); margin-bottom: 12px; }
+.step p { max-width: 44ch; }
+.step .note { margin-top: 10px; font-size: 15px; color: #5a4a1c; }
+.demo { background: var(--ink); color: var(--cream); border-radius: 8px; padding: 18px; min-height: 180px; box-shadow: 0 12px 26px rgba(26,26,26,.22); }
+
+/* 1: voice note */
+.chat { display: grid; gap: 10px; }
+.bubble { justify-self: end; max-width: 92%; background: #1f5c4b; border-radius: 14px 14px 4px 14px; padding: 10px 14px; }
+.bubble.bot { justify-self: start; background: #2b2b2b; border-radius: 14px 14px 14px 4px; }
+.voice { display: flex; align-items: center; gap: 10px; }
+.voice .play { width: 30px; height: 30px; border-radius: 50%; background: var(--cream); display: grid; place-items: center; flex: none; }
+.voice .play svg { width: 12px; height: 12px; margin-left: 2px; }
+.wave { display: flex; align-items: center; gap: 3px; height: 30px; }
+.wave i { width: 3px; border-radius: 2px; background: var(--cream); height: var(--h); transform-origin: center; }
+.playing .wave i { animation: wave .9s var(--ease) infinite alternate; animation-delay: calc(var(--i) * -70ms); }
+@keyframes wave { to { transform: scaleY(.3); } }
+.voice time { font-size: 13px; color: #b9d7cd; }
+.typed { min-height: 1.5em; font-weight: 500; }
+.typed::after { content: ""; display: inline-block; width: 2px; height: 1em; background: var(--yellow); vertical-align: -2px; margin-left: 2px; opacity: 0; }
+.typing .typed::after { opacity: 1; animation: blink .8s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.gloss { font-size: 14px; color: #c9c2ad; margin-top: 4px; }
+
+/* 2: arrivals */
+.buyer { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
+.buyer span { font-weight: 700; font-size: 15px; }
+.lane { position: relative; height: 40px; border-bottom: 1px solid #555; }
+.lane .dot { position: absolute; bottom: calc(var(--y) * 7px + 2px); left: var(--x); width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--teal-ink); transition: opacity .3s, transform .5s var(--ease); }
+.lane .dot.late { background: var(--red); box-shadow: 0 0 0 1px var(--cream); }
+.lane .limit { position: absolute; top: -4px; bottom: 0; left: var(--x); border-left: 2px dashed var(--yellow); }
+.lane .limit b { position: absolute; left: 6px; top: -4px; font-size: 12px; color: var(--yellow); white-space: nowrap; }
+.lane .due { position: absolute; bottom: -1px; left: 0; height: 12px; border-left: 2px solid var(--cream); }
+.js .lane .dot { opacity: 0; transform: translateY(-16px); }
+.js .in .lane .dot { opacity: 1; transform: none; transition-delay: calc(var(--d) * 4ms); }
+.scale { display: flex; justify-content: space-between; margin-left: 86px; font-size: 12px; color: #b7b0a0; }
+
+/* 3: weekly risk */
+.bars { display: grid; grid-template-columns: repeat(13, 1fr); gap: 4px; align-items: end; height: 150px; position: relative; }
+.bar { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.bar i { display: block; width: 100%; height: var(--h); min-height: 3px; border-radius: 3px 3px 0 0; background: #237a52; transform-origin: bottom; transition: transform .8s var(--ease); transition-delay: calc(var(--i) * 50ms); }
+.bar.watch i { background: var(--yellow); }
+.bar.ng i { background: var(--red); }
+.bar em { font-style: normal; font-size: 11px; font-weight: 700; margin-bottom: 3px; color: var(--cream); }
+.js .bar i { transform: scaleY(0); }
+.js .in .bar i { transform: none; }
+.limit5 { position: absolute; left: 0; right: 0; bottom: 10%; border-top: 2px dashed var(--cream); }
+.limit5 b { position: absolute; right: 0; top: -20px; font-size: 12px; }
+.bar-labels { display: grid; grid-template-columns: repeat(13, 1fr); gap: 4px; margin-top: 6px; font-size: 11px; color: #b7b0a0; text-align: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 13px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--c); }
+
+/* 4: fixes */
+.fixes { list-style: none; margin: 0; padding: 0; }
+.fixes li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: start; padding: 9px 0; border-bottom: 1px solid #3a3a3a; font-size: 15px; line-height: 1.35; transition: color .3s; }
+.fixes .tick { width: 22px; height: 22px; border: 2px solid #777; border-radius: 4px; display: grid; place-items: center; transition: background-color .3s, border-color .3s; }
+.fixes .tick svg { width: 14px; height: 14px; opacity: 0; transition: opacity .3s; }
+.fixes li.chosen { color: var(--yellow); }
+.fixes li.chosen .tick { background: var(--yellow); border-color: var(--yellow); }
+.fixes li.chosen .tick svg { opacity: 1; }
+.fixes .cost { font-weight: 700; text-align: right; white-space: nowrap; }
+.fixes .cost small { display: block; font-weight: 400; color: #b7b0a0; font-size: 12px; }
+.total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 12px; font-size: 16px; }
+.total b { font: 400 26px/1 var(--display); color: var(--yellow); }
+
+/* Different: a ruled comparison painted on the red board */
+.diff h2 { text-shadow: 3px 4px 0 var(--ink); max-width: 20ch; }
+.versus { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(16px, 3vw, 40px); margin-top: clamp(28px, 4vw, 48px); }
+.versus figure { margin: 0; }
+.versus figcaption { font: 400 clamp(22px, 2.2vw, 28px)/1.2 var(--display); margin-bottom: 10px; }
+.versus svg { display: block; width: 100%; height: auto; background: var(--red-deep); border: 3px solid var(--ink); border-radius: 6px; }
+.versus .tagline { margin-top: 8px; font-size: 16px; color: var(--cream-2); }
+.line-draw { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.js .line-draw { stroke-dashoffset: 1; transition: stroke-dashoffset 1.6s var(--ease); }
+.js .in .line-draw { stroke-dashoffset: 0; }
+.js .fan-path { opacity: 0; transition: opacity .5s; transition-delay: calc(var(--i) * 18ms); }
+.js .in .fan-path { opacity: 1; }
+table { width: 100%; border-collapse: collapse; margin-top: clamp(28px, 4vw, 48px); font-size: clamp(16px, 1.5vw, 19px); }
+th, td { text-align: left; padding: 14px 12px 14px 0; border-top: 2px solid rgba(255,246,221,.5); vertical-align: top; }
+thead th { font: 400 20px var(--display); border-top: 0; padding-bottom: 8px; }
+thead th:last-child { color: var(--cream); text-decoration: underline 3px var(--yellow); text-underline-offset: .25em; }
+td:first-child { color: var(--cream-2); width: 46%; }
+td:last-child { font-weight: 700; }
+
+/* Trust strip */
+.trust { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; margin-top: clamp(28px, 4vw, 48px); padding: 18px 20px; border: 3px solid var(--ink); border-radius: 6px; background: var(--cream-2); }
+.trust svg { width: 40px; height: 40px; }
+.trust p { max-width: 70ch; font-size: 17px; }
+
+/* Close */
+.close { text-align: center; }
+.close h2 { text-shadow: 3px 4px 0 var(--ink); }
+.close .deva-line { font: 400 clamp(26px, 3vw, 40px)/1.2 var(--display); color: var(--yellow); margin-bottom: 12px; }
+.close p { max-width: 52ch; margin: 18px auto 30px; font-size: 20px; color: var(--teal-ink); }
+.close .plate { font-size: clamp(22px, 2.4vw, 28px); min-height: 64px; padding: 12px 34px 14px; }
+footer { padding: 26px var(--gutter) 40px; color: #cfc8b4; font-size: 15px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; }
+footer b { color: var(--cream); font-weight: 700; }
+
+/* Spacing between boards */
+main > .board + .board { margin-top: 10px; }
+
+@media (max-width: 980px) {
+  .hero { grid-template-columns: minmax(0, 1fr); }   /* minmax: a long line must not widen the column */
+  .step { grid-template-columns: clamp(56px, 12vw, 84px) minmax(0, 1fr); }
+  .step .demo { grid-column: 2; }
+  .versus { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  body { font-size: 17px; }
+  .top nav a:not(.plate) { display: none; }
+  .logo { font-size: 24px; } .logo .deva { font-size: 20px; }
+  .board { border-width: 4px; }
+  .board::before, .board::after, .rivets::before, .rivets::after { width: 9px; height: 9px; }
+  .board::before { top: 12px; left: 12px; } .board::after { top: 12px; right: 12px; }
+  .rivets::before { bottom: 12px; left: 12px; } .rivets::after { bottom: 12px; right: 12px; }
+  .step { grid-template-columns: 1fr; gap: 14px; }
+  .step .demo { grid-column: 1; }
+  .num { display: flex; align-items: baseline; gap: 12px; }
+  .num small { margin: 0; }
+  .wk { min-height: 30px; font-size: 11px; }
+  .panel { padding: 16px 14px 14px; }
+  td:first-child { width: 42%; }
+  .buyer { grid-template-columns: 62px 1fr; } .scale { margin-left: 72px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="#" aria-label="Kab Tak? home"><span class="deva" lang="hi">कब तक?</span> Kab Tak?</a>
+  <nav aria-label="Main">
+    <a href="#how">How it works</a>
+    <a href="#different">Why it's different</a>
+    <a class="plate small" href="/onboard">Sign up</a>
+  </nav>
+</header>
+
+<main>
+  <section class="board cream" aria-labelledby="hero-title">
+    <span class="rivets" aria-hidden="true"></span>
+    <div class="hero wrap">
+      <div>
+        <p class="ask">
+          <span class="mic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff6dd" stroke-width="2.4" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+          <span id="ask-q" lang="hi">क्या ७ तारीख को तनख़्वाह दे पाऊँगा?</span>
+        </p>
+        <h1 id="hero-title"><span>One voice note.</span> <span>A thousand futures.</span></h1>
+        <p class="lede">Ask in <b>Hindi</b>, Marathi or English on WhatsApp. Kab Tak? plays out <b>1,000 versions</b> of your next 90 days, shows the week cash may run short, and finds the cheapest fix.</p>
+        <div class="cta-row">
+          <a class="plate" href="/onboard">
+            Sign up <span class="deva" lang="hi">· दुकान जोड़ें</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="more" href="#how">See how it works</a>
+        </div>
+      </div>
+
+      <figure class="panel" aria-labelledby="panel-q" style="margin:0">
+        <p class="q" id="panel-q"><span lang="hi" id="transcript"></span><small>"Should I take a ₹12 lakh order from a new buyer on 90-day terms?"</small></p>
+        <div class="counter" aria-hidden="true"><span>Futures played out</span><b id="count">0000</b></div>
+        <canvas id="fan" role="img" aria-label="1,000 simulated paths of the bank balance over the next 90 days. Several dip below zero in mid-December."></canvas>
+        <div class="axis" aria-hidden="true"><span>Today, 26 Oct</span><span>₹0 line dashed</span><span>23 Jan</span></div>
+        <div class="weeks" id="weeks" aria-label="Chance of running short, each week (percent)"></div>
+        <div class="verdict" id="verdict" aria-live="polite"></div>
+        <figcaption class="panel-foot"><span>Synthetic demo shop · numbers from the Kab Tak? engine</span><button class="replay" id="replay" type="button">Play again</button></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="board cream how" id="how" aria-labelledby="how-title">
+    <span class="rivets" aria-hidden="true"></span>
+    <div class="wrap">
+      <h2 id="how-title">From one question to the cheapest fix.</h2>
+      <p class="intro">You ask the way you'd ask your CA. Four steps later you have one answer and one thing to do, and the working is there for your CA to check.</p>
+      <ol class="steps">
+        <li class="step" data-demo="voice">
+          <div class="num" aria-hidden="true">१<small>STEP 1</small></div>
+          <div>
+            <h3>Ask in your own words.</h3>
+            <p>Send a voice note on WhatsApp in Hindi, Marathi or English. "Can I take this order?" "What if my biggest buyer pays a month late?" No forms, no dashboard.</p>
+            <p class="note">The language model only turns your words into a question. It never produces a number.</p>
+          </div>
+          <div class="demo chat" aria-label="Example WhatsApp exchange">
+            <div class="bubble voice" id="voice">
+              <span class="play" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M1 0l11 6-11 6z" fill="#1a1a1a"/></svg></span>
+              <span class="wave" aria-hidden="true" id="wave"></span>
+              <time>0:06</time>
+            </div>
+            <div class="bubble bot">
+              <p class="typed" lang="hi" id="typed"></p>
+              <p class="gloss">Heard: new buyer, ₹12 lakh order, 90-day terms.</p>
+            </div>
+          </div>
+        </li>
+
+        <li class="step" data-demo="arrivals">
+          <div class="num" aria-hidden="true">२<small>STEP 2</small></div>
+          <div>
+            <h3>Every invoice gets a range, not a due date.</h3>
+            <p>Buyers rarely pay on the day. Kab Tak? learns when each buyer actually pays, then asks the question in its name: kab tak? How many days late can each buyer be before you run short?</p>
+            <p class="note">Dots show an illustrative spread of payment days. The yellow limits come from the engine.</p>
+          </div>
+          <div class="demo" id="arrivals" aria-label="How late each buyer can pay before a shortfall: Buyer A 38 days, Buyer B 61 days, CPSE 90 days."></div>
+        </li>
+
+        <li class="step" data-demo="weeks">
+          <div class="num" aria-hidden="true">३<small>STEP 3</small></div>
+          <div>
+            <h3>1,000 futures, checked week by week.</h3>
+            <p>Each of the 1,000 runs mixes those payment ranges with your wages, EMIs, GST and supplier bills. Every week gets one number: the chance you run short. The limit is 5%.</p>
+            <p class="note">The worst week here is 14 Dec: advance tax, GST and the GST on the new order all land together.</p>
+          </div>
+          <div class="demo" id="risk" aria-label="Weekly chance of a shortfall, from 0% to 49%; the week of 14 December is highest at 49%."></div>
+        </li>
+
+        <li class="step" data-demo="fixes">
+          <div class="num" aria-hidden="true">४<small>STEP 4</small></div>
+          <div>
+            <h3>The cheapest fix, priced in rupees.</h3>
+            <p>Discount an invoice on TReDS, draw more on the overdraft, pay a supplier later, or send a late buyer an MSMED heads-up. Kab Tak? finds the cheapest mix that gets the risk under 5%. You decide.</p>
+          </div>
+          <div class="demo" id="fixdemo"></div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="board red diff" id="different" aria-labelledby="diff-title">
+    <span class="rivets" aria-hidden="true"></span>
+    <div class="wrap">
+      <h2 id="diff-title">Other apps draw one line. We draw a thousand.</h2>
+      <div class="versus" id="versus">
+        <figure>
+          <figcaption>A single forecast</figcaption>
+          <svg viewBox="0 0 400 180" role="img" aria-label="A single forecast line that stays above zero the whole time.">
+            <line x1="0" y1="140" x2="400" y2="140" stroke="#fff6dd" stroke-dasharray="6 6" opacity=".6"/>
+            <path class="line-draw" pathLength="1" id="single" fill="none" stroke="#fff6dd" stroke-width="3"/>
+          </svg>
+          <p class="tagline">It stays above zero, so everything looks fine.</p>
+        </figure>
+        <figure>
+          <figcaption>Kab Tak?: 1,000 futures</figcaption>
+          <svg viewBox="0 0 400 180" role="img" aria-label="Many simulated paths. About half dip below zero in mid-December." id="fansvg">
+            <line x1="0" y1="140" x2="400" y2="140" stroke="#fff6dd" stroke-dasharray="6 6" opacity=".6"/>
+          </svg>
+          <p class="tagline">The same shop: in 49 out of 100 futures, cash runs out the week of 14 Dec.</p>
+        </figure>
+      </div>
+      <table>
+        <thead><tr><th scope="col">Most cash-flow tools</th><th scope="col">Kab Tak?</th></tr></thead>
+        <tbody>
+          <tr><td>A dashboard in English</td><td>A voice note on WhatsApp, in Hindi</td></tr>
+          <tr><td>One forecast line</td><td>1,000 futures and the chance of running short each week</td></tr>
+          <tr><td>Invoices counted on their due date</td><td>A payment range for each buyer, and how late they can be</td></tr>
+          <tr><td>"You may be short"</td><td>The cheapest fix, in rupees, under a 5% risk limit</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="board teal close" aria-labelledby="close-title">
+    <span class="rivets" aria-hidden="true"></span>
+    <div class="wrap">
+      <p class="deva-line" lang="hi">पैसा कब तक चलेगा? पूछिए।</p>
+      <h2 id="close-title">Ask your first question this week.</h2>
+      <p>Upload your Tally export or a spreadsheet of invoices and bills. You get a join code for the WhatsApp bot, and your shop's data stays yours.</p>
+      <a class="plate" href="/onboard">
+        Sign up <span class="deva" lang="hi">· दुकान जोड़ें</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span><b>Kab Tak?</b> Computes and compares options, not financial or legal advice. Every figure on this page is synthetic.</span>
+  <span>Srujana Tech Fest 2026 · F-03 Predictive cash flow</span>
+</footer>
+
+<script>
+document.documentElement.classList.add("js");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Hero question: the same "can I pay wages on the 7th?" in the languages owners speak. Reduced motion: Hindi only.
+const ASKS = [["hi", "क्या ७ तारीख को तनख़्वाह दे पाऊँगा?"], ["kn", "೭ನೇ ತಾರೀಖು ಸಂಬಳ ಕೊಡಬಹುದಾ?"],
+              ["ta", "7-ம் தேதி சம்பளம் தர முடியுமா?"], ["en", "Can I pay wages on the 7th?"]];
+if (!reduce) {
+  const q = document.getElementById("ask-q"), box = q.closest(".ask");
+  const fit = () => {   // one line always: shrink this question's text only if it is wider than the column
+    q.style.fontSize = "";
+    const room = box.parentElement.clientWidth - (box.offsetWidth - q.offsetWidth);
+    if (q.scrollWidth > room) q.style.fontSize = `${parseFloat(getComputedStyle(q).fontSize) * room / q.scrollWidth}px`;
+  };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const wipe = (from, to, duration, easing) => q.animate(
+    [{ maskPosition: from, webkitMaskPosition: from }, { maskPosition: to, webkitMaskPosition: to }],
+    { duration, easing, fill: "forwards" });
+  document.fonts.ready.then(fit);
+  addEventListener("resize", fit);
+  (async () => {
+    for (let i = 0; ; ) {
+      await sleep(2800);
+      const off = wipe("0% 0", "100% 0", 600, "cubic-bezier(.55, 0, .75, .2)");   // off, right to left
+      await off.finished;
+      const from = q.offsetWidth;
+      i = (i + 1) % ASKS.length; [q.lang, q.textContent] = ASKS[i];
+      fit();
+      const on = wipe("100% 0", "0% 0", 900, "cubic-bezier(.22, 1, .36, 1)");     // on, left to right
+      off.cancel();
+      q.animate([{ width: from + "px" }, { width: q.offsetWidth + "px" }], { duration: 500, easing: "cubic-bezier(.16, 1, .3, 1)" });
+      await on.finished;
+      on.cancel();   // back to the stylesheet's resting mask (fully shown)
+    }
+  })();
+}
+
+// Synthetic demo result from fixtures/engine_result.json (balance in ₹ lakh, daily)
+const R = {
+  transcript: "नए बायर का १२ लाख का ऑर्डर ९० दिन की उधारी पर ले लूँ?",
+  fan: {"p10":[9.92,10.03,10.18,10.35,10.53,10.71,10.9,5.7,5.89,6.1,2.3,2.51,-0.68,-0.47,-0.26,-0.05,0.17,0.38,0.6,0.82,1.04,1.26,1.48,1.7,1.93,-0.45,-0.23,-0.0,0.22,0.45,2.59,2.82,3.05,3.28,3.5,3.73,3.96,4.19,4.42,4.65,3.68,3.91,0.74,0.97,1.2,1.43,1.67,1.9,2.13,2.36,1.1,1.33,1.56,1.8,2.03,-2.49,-2.26,-2.03,-1.79,-1.56,0.6,0.83,1.07,1.31,1.54,1.78,2.01,2.25,2.49,2.72,2.96,2.0,2.23,-0.93,-0.69,-0.46,-0.22,0.02,0.26,0.49,0.73,0.97,1.21,1.45,1.69,1.92,-0.44,-0.2,0.04,0.28],"p50":[10.26,10.51,10.77,11.03,11.28,11.54,11.8,6.65,6.91,7.17,3.43,3.68,0.54,0.8,1.05,1.31,1.57,1.82,2.08,2.34,2.59,2.85,3.11,3.36,3.62,1.28,1.53,1.79,2.05,2.31,4.48,4.74,5.0,5.25,5.51,5.77,6.02,6.28,6.54,6.79,5.85,6.11,2.96,3.22,3.48,3.73,3.99,4.25,4.51,4.76,3.52,3.78,4.03,4.29,4.55,0.04,0.3,0.56,0.81,1.07,3.25,3.5,3.76,4.02,4.27,4.53,4.79,5.05,5.3,5.56,5.82,4.87,5.13,1.99,2.24,2.5,2.76,3.01,3.27,3.53,3.78,4.04,4.3,4.55,4.81,5.07,2.73,2.98,3.24,3.5],"p90":[10.6,10.99,11.36,11.71,12.04,12.37,12.7,7.61,7.93,8.24,4.55,4.86,1.76,2.06,2.37,2.67,2.96,3.26,3.56,3.85,4.15,4.44,4.73,5.03,5.32,3.01,3.3,3.59,3.87,4.16,6.37,6.66,6.94,7.23,7.52,7.8,8.09,8.37,8.65,8.94,8.02,8.3,5.19,5.47,5.75,6.03,6.32,6.6,6.88,7.16,5.94,6.22,6.5,6.78,7.06,2.58,2.86,3.14,3.42,3.7,5.9,6.17,6.45,6.73,7.01,7.29,7.56,7.84,8.12,8.4,8.67,7.75,8.03,4.9,5.18,5.46,5.73,6.01,6.28,6.56,6.84,7.11,7.39,7.66,7.94,8.21,5.89,6.16,6.44,6.71]},
+  weeks: [["2026-10-26",0.0],["2026-11-02",0.29],["2026-11-09",0.19],["2026-11-16",0.18],["2026-11-23",0.1],["2026-11-30",0.0],["2026-12-07",0.05],["2026-12-14",0.49],["2026-12-21",0.44],["2026-12-28",0.03],["2027-01-04",0.2],["2027-01-11",0.11],["2027-01-18",0.14]],
+  kabTak: [["Buyer A", 38], ["Buyer B", 61], ["CPSE", 90]],
+  fixes: [
+    { label: "Discount Buyer A invoice INV-2041 on TReDS", cost: 6600, after: 0.22, plan: true },
+    { label: "Run ₹4 L more on the overdraft for 3 weeks", cost: 2400, after: 0.30, plan: true },
+    { label: "Ask the new buyer for 60-day terms instead of 90", cost: 0, after: 0.06 },
+    { label: "Pay the steel supplier 15 days later", cost: 3000, after: 0.35 },
+  ],
+  plan: { cost: 9000, before: 0.49, after: 0.04 },
+};
+const level = (p) => p <= 0.05 ? ["ok", "OK"] : p < 0.5 ? ["watch", "At risk"] : ["ng", "Likely short"];
+const pct = (p) => Math.round(p * 100);
+const rupees = (n) => n === 0 ? "₹0" : "₹" + n.toLocaleString("en-IN");
+const fmtDay = (iso) => new Date(iso + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const sleep = (ms) => new Promise((r) => setTimeout(r, reduce ? 0 : ms));
+
+// Seeded paths that stay inside the engine's p10-p90 band, wandering like real balances
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function makePaths(n, seed) {
+  const rand = rng(seed), gauss = () => Math.sqrt(-2 * Math.log(rand() || 1e-9)) * Math.cos(2 * Math.PI * rand());
+  const { p10, p50, p90 } = R.fan, out = [];
+  for (let i = 0; i < n; i++) {
+    let q = gauss(), e = 0; const path = [];
+    for (let t = 0; t < p50.length; t++) {
+      e = 0.9 * e + 0.1 * gauss();
+      const z = q + e, w = z > 0 ? (p90[t] - p50[t]) : (p50[t] - p10[t]);
+      path.push(p50[t] + z * w / 1.28);
+    }
+    out.push(path);
+  }
+  return out;
+}
+
+/* ---------- Hero: the ignition sequence ---------- */
+const canvas = document.getElementById("fan"), ctx = canvas.getContext("2d");
+const countEl = document.getElementById("count"), weeksEl = document.getElementById("weeks"), verdictEl = document.getElementById("verdict");
+const LO = -4, HI = 13.5;
+let paths = makePaths(1000, 7), run = 0;
+document.getElementById("transcript").textContent = R.transcript;
+R.weeks.forEach(([d]) => { const c = document.createElement("div"); c.className = "wk"; c.title = "Week of " + fmtDay(d); weeksEl.append(c); });
+
+function size() {
+  const r = canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  canvas.width = r.width * dpr; canvas.height = r.height * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [r.width, r.height];
+}
+let W, H;
+const X = (t) => t / (R.fan.p50.length - 1) * W, Y = (v) => H - (v - LO) / (HI - LO) * H;
+function base() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = "rgba(255,246,221,.55)"; ctx.setLineDash([5, 5]); ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, Y(0)); ctx.lineTo(W, Y(0)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(255,246,221,.7)"; ctx.font = "600 12px Mukta, sans-serif"; ctx.fillText("₹0", 4, Y(0) - 5);
+}
+function stroke(p) {
+  ctx.beginPath(); p.forEach((v, t) => t ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v)));
+  ctx.strokeStyle = "rgba(255,246,221,.06)"; ctx.lineWidth = 1; ctx.stroke();
+  if (Math.min(...p) < 0) { // the part below zero is painted red
+    ctx.save(); ctx.beginPath(); ctx.rect(0, Y(0), W, H); ctx.clip();
+    ctx.beginPath(); p.forEach((v, t) => t ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v)));
+    ctx.strokeStyle = "rgba(255,110,96,.22)"; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
+  }
+}
+function median() {
+  ctx.beginPath(); R.fan.p50.forEach((v, t) => t ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v)));
+  ctx.strokeStyle = "#f2b705"; ctx.lineWidth = 2.5; ctx.stroke();
+}
+async function play() {
+  const id = ++run;
+  [W, H] = size(); base();
+  weeksEl.querySelectorAll(".wk").forEach((c) => { c.className = "wk"; c.textContent = ""; });
+  verdictEl.innerHTML = "";
+  const per = reduce ? 1000 : 9;
+  for (let i = 0; i < 1000; i += per) {
+    if (id !== run) return;
+    paths.slice(i, i + per).forEach(stroke);
+    countEl.textContent = String(Math.min(i + per, 1000)).padStart(4, "0");
+    if (!reduce) await new Promise(requestAnimationFrame);
+  }
+  median();
+  const cells = weeksEl.querySelectorAll(".wk");
+  let worst = 0;
+  for (let i = 0; i < R.weeks.length; i++) {
+    if (id !== run) return;
+    const p = R.weeks[i][1]; if (p > R.weeks[worst][1]) worst = i;
+    cells[i].classList.add(level(p)[0]); cells[i].textContent = pct(p);
+    cells[i].setAttribute("aria-label", `Week of ${fmtDay(R.weeks[i][0])}: ${pct(p)}%, ${level(p)[1]}`);
+    await sleep(70);
+  }
+  cells[worst].classList.add("worst");
+  verdictEl.innerHTML = `<div class="big">Week of ${fmtDay(R.weeks[worst][0])}: ${pct(R.plan.before)}% chance of running short</div>`;
+  await sleep(1400); if (id !== run) return;
+  verdictEl.insertAdjacentHTML("beforeend", `<div class="fix">Cheapest fix: TReDS on INV-2041 + ₹4 L more OD for 3 weeks, costing ${rupees(R.plan.cost)}.</div><div class="fix">Risk with the fix: <b class="risk" id="riskn">${pct(R.plan.before)}%</b> <span class="stamp" id="okstamp" hidden>Under 5%</span></div>`);
+  const n = document.getElementById("riskn");
+  for (let v = pct(R.plan.before); v >= pct(R.plan.after); v--) { if (id !== run) return; n.textContent = v + "%"; await sleep(28); }
+  cells[worst].classList.remove("ng", "watch"); cells[worst].classList.add("ok"); cells[worst].textContent = pct(R.plan.after);
+  document.getElementById("okstamp").hidden = false;
+}
+document.getElementById("replay").addEventListener("click", play);
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(play, 250); });
+document.fonts.ready.then(play);
+
+/* ---------- Step demos, each started once when scrolled into view ---------- */
+// 1: voice note plays, then the transcript types out
+const wave = document.getElementById("wave");
+[10,18,26,14,22,30,16,24,12,28,20,14,26,18,10,22,16,28,12,20].forEach((h, i) => { const b = document.createElement("i"); b.style.setProperty("--h", h + "px"); b.style.setProperty("--i", i); wave.append(b); });
+const typed = document.getElementById("typed");
+async function voiceDemo(li) {
+  const v = document.getElementById("voice"), chars = [...R.transcript];
+  if (reduce) { typed.textContent = R.transcript; return; }
+  v.classList.add("playing"); await sleep(1600); v.classList.remove("playing");
+  li.classList.add("typing");
+  for (let i = 1; i <= chars.length; i++) { typed.textContent = chars.slice(0, i).join(""); await sleep(38); }
+  li.classList.remove("typing");
+}
+typed.textContent = reduce ? R.transcript : "";
+
+// 2: payment days per buyer against how late each can be
+(function arrivals() {
+  const box = document.getElementById("arrivals"), rand = rng(3), MAX = 100;
+  const spread = { "Buyer A": [30, 16], "Buyer B": [22, 20], "CPSE": [55, 22] }; // illustrative mean/sd days late
+  let html = "";
+  R.kabTak.forEach(([name, limit]) => {
+    const [m, sd] = spread[name], cols = {}; let dots = "";
+    for (let k = 0; k < 26; k++) {
+      const g = Math.sqrt(-2 * Math.log(rand() || 1e-9)) * Math.cos(2 * Math.PI * rand());
+      const d = Math.max(0, Math.min(MAX - 2, Math.round((m + g * sd) / 4) * 4)), y = cols[d] = (cols[d] || 0) + 1;
+      if (y > 5) continue;
+      dots += `<span class="dot${d > limit ? " late" : ""}" style="--x:${d / MAX * 100}%;--y:${y - 1};--d:${k * 6 + d}"></span>`;
+    }
+    html += `<div class="buyer"><span>${name}</span><div class="lane"><span class="due"></span>${dots}<span class="limit" style="--x:${Math.min(limit, MAX - 1) / MAX * 100}%"><b>${limit} days</b></span></div></div>`;
+  });
+  box.innerHTML = html + `<div class="scale" aria-hidden="true"><span>due date</span><span>50 days late</span><span>100</span></div>`;
+})();
+
+// 3: weekly risk bars against the 5% line
+(function riskBars() {
+  const box = document.getElementById("risk"), top = 0.5;
+  box.innerHTML = `<div class="bars">${R.weeks.map(([d, p], i) => `<div class="bar ${level(p)[0]}" style="--i:${i}"><em>${pct(p)}</em><i style="--h:${p / top * 85}%"></i></div>`).join("")}<span class="limit5" style="bottom:${0.05 / top * 85}%"><b>5% limit</b></span></div>
+  <div class="bar-labels" aria-hidden="true">${R.weeks.map(([d], i) => `<span>${i % 2 ? "" : fmtDay(d)}</span>`).join("")}</div>
+  <div class="legend"><span style="--c:#237a52">OK, 5% or less</span><span style="--c:#f2b705">At risk</span><span style="--c:#c8201e">Likely short, 50% or more</span></div>`;
+})();
+
+// 4: fixes ranked by cost, the plan ticks in, risk rolls down
+const tickSvg = `<svg viewBox="0 0 16 16" fill="none" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3 3 7-7"/></svg>`;
+const fixBox = document.getElementById("fixdemo");
+fixBox.innerHTML = `<ul class="fixes">${R.fixes.map((f) => `<li data-plan="${!!f.plan}"><span class="tick" aria-hidden="true">${tickSvg}</span><span>${f.label}</span><span class="cost">${rupees(f.cost)}<small>alone: ${pct(f.after)}%</small></span></li>`).join("")}</ul>
+  <div class="total"><span>Plan: TReDS + overdraft, <b>${rupees(R.plan.cost)}</b></span><span>Risk <b id="planrisk">${pct(R.plan.before)}%</b></span></div>`;
+async function fixDemo() {
+  const rows = fixBox.querySelectorAll("li[data-plan=true]"), n = document.getElementById("planrisk");
+  for (const r of rows) { r.classList.add("chosen"); await sleep(500); }
+  for (let v = pct(R.plan.before); v >= pct(R.plan.after); v--) { n.textContent = v + "%"; await sleep(24); }
+}
+
+// Different: one line vs the fan, from the same data
+(function versus() {
+  const { p10, p50, p90 } = R.fan, n = p50.length, x = (t) => t / (n - 1) * 400, y = (v) => 140 - v * 10;
+  const pts = (arr) => arr.map((v, t) => `${t ? "L" : "M"}${x(t).toFixed(1)} ${y(v).toFixed(1)}`).join("");
+  // the single line most tools show: the average path, smoothed
+  const smooth = p50.map((_, t) => { const a = p50.slice(Math.max(0, t - 4), t + 5); return a.reduce((s, v) => s + v, 0) / a.length + 1.2; });
+  document.getElementById("single").setAttribute("d", pts(smooth));
+  const svg = document.getElementById("fansvg");
+  svg.insertAdjacentHTML("beforeend", makePaths(60, 11).map((p, i) => `<path class="fan-path" style="--i:${i}" d="${pts(p)}" fill="none" stroke="${Math.min(...p) < 0 ? "#ff8a7a" : "#fff6dd"}" stroke-opacity=".45" stroke-width="1.2"/>`).join(""));
+})();
+
+const demos = { voice: voiceDemo, fixes: fixDemo };
+const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+  if (!e.isIntersecting) return;
+  e.target.classList.add("in"); io.unobserve(e.target);
+  demos[e.target.dataset.demo]?.(e.target);
+}), { threshold: 0.35 });
+document.querySelectorAll(".step, #versus").forEach((el) => io.observe(el));
+</script>
+</body>
+</html>
